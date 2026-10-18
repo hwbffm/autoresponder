@@ -1,0 +1,8 @@
+# Python-Umgebung
+.venv/
+__pycache__/
+
+# persönliche Einstellungen und Logs
+mesh_responder.json
+mesh_responder.log
+mesh_responder_log.csv
