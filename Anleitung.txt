@@ -1,6 +1,6 @@
 MESH-RESPONDER – ANLEITUNG
 ==========================
-Autoresponder Version 1.0.0 / Oktober 2026 für Virtual Meshtastic Nodes
+Autoresponder Version 1.1.0 / Oktober 2026 für Virtual Meshtastic Nodes
 (z. B. Mesh Hessen Client 1.6.4). Rückfragen an Meshtastic #EPP1
 
 Lizenz: Public Domain (Unlicense, https://unlicense.org), siehe Kopf von mesh_responder.py.
@@ -95,6 +95,9 @@ Rechtsklick auf das Icon öffnet das Menü:
   Antworttexte bearbeiten …  die 9 + 9 Antworttexte (siehe 6.)
   Auf Smileys reagieren      angehakt: auch reine Smiley-Nachrichten/Reaktionen (👍 😂)
                              öffnen ein Fenster; sonst nur Log-Eintrag
+  Auf MQTT-Nachrichten       angehakt: auch Nachrichten, die über MQTT (Internet) statt
+    reagieren                per Funk ankamen, öffnen ein Fenster; sonst nur Log-Eintrag
+                             (Standard: aus). Siehe Abschnitt 8a.
   Ruhezeit                   Ruhezeit schnell ein-/ausschalten (Zeiten im Setup)
   Sperrliste …               gesperrte Absender ansehen, hinzufügen, entfernen
   Log und Statistik …        alle Ereignisse als Tabelle, dazu eine Statistik
@@ -152,13 +155,13 @@ Hinweis bei neuer Nachricht
   Ton und/oder Windows-Benachrichtigung, wenn ein Fenster aufgeht.
 
 Reihenfolge der Regeln für eine eingehende Nachricht:
-  Sperrliste -> Smiley-Filter -> Zeitsperre -> DM "ohne Bestätigung" -> Ruhezeit -> Fenster
+  Sperrliste -> Smiley-Filter -> MQTT-Filter -> Zeitsperre -> DM "ohne Bestätigung" -> Ruhezeit -> Fenster
 
 
 8. LOG UND STATISTIK
 --------------------
 Alle Ereignisse landen in mesh_responder_log.csv (Semikolon-getrennt, direkt mit Excel
-zu öffnen): Empfangen, Gesendet, Automatisch gesendet, Smiley ignoriert, Gesperrt,
+zu öffnen): Empfangen, Gesendet, Automatisch gesendet, Smiley ignoriert, MQTT ignoriert, Gesperrt,
 Zeitsperre, Ruhezeit, Verbindungswechsel, Fehler.
 
 "Log und Statistik" zeigt das Log als Tabelle (neueste oben, gesendet = grün,
@@ -166,6 +169,22 @@ Fehler = rot, Systemmeldungen = grau). Rechtsklick auf eine Zeile: Absender sper
 oder entsperren.
 Reiter "Statistik": Nachrichten pro Tag und Kanal, pro Kanal gesamt (mit Ø Hops und
 Ø SNR) und die häufigsten Absender.
+Die Spalte "Weg" im Log zeigt, ob eine Nachricht per Funk oder über MQTT kam; die
+Kanalstatistik zählt MQTT-Nachrichten in "davon MQTT" mit (Ø SNR nur aus Funkempfang).
+
+
+8a. MQTT UND RESPONDER GLEICHZEITIG
+-----------------------------------
+Das MQTT-Modul läuft im Node selbst (Heltec per WLAN zum Broker); der Responder hängt
+über den Meshhessen Client am Node. Beides läuft problemlos gleichzeitig.
+
+Ist am Node für einen Kanal der MQTT-Downlink eingeschaltet, kommen dort auch
+Nachrichten aus dem Internet an. Meshtastic markiert sie (viaMqtt). Standardmäßig
+öffnet der Responder dafür KEIN Fenster und schreibt nur "MQTT ignoriert" ins Log –
+im Tray-Menü mit "Auf MQTT-Nachrichten reagieren" einschaltbar.
+Bei MQTT-Nachrichten sind Hops/SNR/RSSI nicht aussagekräftig; das Fenster zeigt dann
+"über MQTT". Antworten des Responders gehen per Funk und – bei eingeschaltetem
+Uplink – auch über MQTT hinaus.
 
 Hinweis: Solange die CSV-Datei in Excel geöffnet ist, sperrt Excel sie. Neue Einträge
 gehen dann verloren. Excel nach dem Anschauen schließen oder die Tabelle im Programm

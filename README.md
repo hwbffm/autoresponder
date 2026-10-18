@@ -1,6 +1,6 @@
 # Autoresponder für Meshtastic (Virtual Node)
 
-**Version 1.0.0 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
+**Version 1.1.0 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
 
 Kleines Windows-Tray-Programm, das über den **Virtual Node** eines Meshtastic-Clients
 (z. B. [Mesh Hessen Client](https://www.meshhessen.de) 1.6.4) im Mesh mithört. Bei jeder
@@ -24,6 +24,7 @@ Empfangen: CH1 | Hops: 3
 - Eigener Text direkt im Nachrichtenfenster möglich
 - DM-Plätze optional „ohne Bestätigung“ (sofortige Antwort)
 - Smiley-/Reaktions-Filter, Sperrliste, Zeitsperre pro Absender, Ruhezeiten
+- Filter für Nachrichten, die über MQTT (Internet) statt per Funk kamen
 - Ton und Windows-Benachrichtigung bei neuer Nachricht
 - Log als CSV (Excel) und als Tabelle mit Statistik im Programm
 - Setup im Programm: Adresse/Port des Nodes, Kanäle, Zeitsperre, Ruhezeiten

@@ -70,14 +70,14 @@ POPUP_TIMEOUT_S = 90                            # danach schließt das Fenster o
 MAX_BYTES = 200                                 # Meshtastic-Textlimit (ca.)
 POPUP_BOTTOM_PX = 320                           # Abstand Fenster–Bildschirmunterkante (Platz für Hinweise
                                                 # des Meshhessen Clients und Windows-Benachrichtigungen)
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 VERSION_DATE = "Oktober 2026"
 # -------------------------------------------------------------------------------
 
 HERE = Path(__file__).resolve().parent
 SETTINGS_FILE = HERE / "mesh_responder.json"
 CSV_FILE = HERE / "mesh_responder_log.csv"
-CSV_HEADER = ["Zeit", "Ereignis", "Kanal", "Node-ID", "Name", "Hops", "Text", "SNR", "RSSI"]
+CSV_HEADER = ["Zeit", "Ereignis", "Kanal", "Node-ID", "Name", "Hops", "Text", "SNR", "RSSI", "Weg"]
 SLOTS = 9
 DEFAULT_TEXT = "In Standort angekommen ✅\n{name} | {short} | {id}\nEmpfangen: {wo} | Hops: {hops}"
 PLACEHOLDER_HELP = ("Platzhalter:  {name} Langname   {short} Kurzname   {id} Node-ID   {wo} CHn/DM   "
@@ -127,7 +127,7 @@ def default_settings():
             "verbindung": {"host": HOST, "port": PORT},
             "kanaele": list(DEFAULT_CHANNELS),
             "sperrliste": {},     # Node-ID -> Name
-            "optionen": {"smileys": False, "sperre_min": 10, "ton": True, "benachrichtigung": True,
+            "optionen": {"smileys": False, "mqtt": False, "sperre_min": 10, "ton": True, "benachrichtigung": True,
                          "ruhe_an": False, "ruhe_von": "22:00", "ruhe_bis": "07:00", "ruhe_auto": False}}
 
 
@@ -221,7 +221,7 @@ def log_csv(ereignis, info=None, text=None):
     i = info or {}
     row = [time.strftime("%Y-%m-%d %H:%M:%S"), ereignis, i.get("kanal", ""), i.get("id", ""),
            i.get("name", ""), i.get("hops", ""), i.get("text", "") if text is None else text,
-           i.get("snr", ""), i.get("rssi", "")]
+           i.get("snr", ""), i.get("rssi", ""), i.get("weg", "")]
     with csv_lock:
         try:
             new = not CSV_FILE.exists()
@@ -290,6 +290,7 @@ def pkt_info(pkt, iface):
     return {"id": frm, "name": long_name, "short": short, "wo": where(pkt), "hops": hops,
             "kanal": "DM" if is_dm(pkt) else state["chans"].get(ch, f"CH{ch}"),
             "snr": fmt_num(pkt.get("rxSnr")), "rssi": fmt_num(pkt.get("rxRssi")),
+            "weg": "MQTT" if pkt.get("viaMqtt") else "Funk",
             "text": pkt.get("decoded", {}).get("text", ""), "zeit": time.strftime("%H:%M")}
 
 
@@ -304,6 +305,9 @@ def on_text(packet, interface):
         return
     if is_smiley(packet) and not settings["optionen"]["smileys"]:
         log_csv("Smiley ignoriert", i)
+        return
+    if packet.get("viaMqtt") and not settings["optionen"]["mqtt"]:
+        log_csv("MQTT ignoriert", i)
         return
     log_csv("Empfangen", i)
     events.put(lambda p=packet: handle_incoming(p))
@@ -442,7 +446,8 @@ class Popup:
         w.resizable(False, False)
         pad = {"padx": 12, "pady": 4, "anchor": "w"}
         tk.Label(w, text=f"{label}  ·  {self.info['zeit']}  ·  Hops {self.info['hops']}  ·  "
-                         f"SNR {self.info['snr']}  ·  RSSI {self.info['rssi']}",
+                         + ("über MQTT" if self.info["weg"] == "MQTT"
+                            else f"SNR {self.info['snr']}  ·  RSSI {self.info['rssi']}"),
                  fg="#888").pack(padx=12, pady=(8, 0), anchor="w")
         tk.Label(w, text=f"{self.info['name']} ({self.info['id']})", font=("Segoe UI", 10, "bold")).pack(**pad)
         tk.Label(w, text=self.info["text"], font=("Segoe UI", 11), wraplength=360, justify="left").pack(**pad)
@@ -799,11 +804,11 @@ class LogView:
         nb.add(frame, text="Log")
         self.tree = t = ttk.Treeview(frame, columns=CSV_HEADER, show="headings")
         widths = {"Zeit": 135, "Ereignis": 190, "Kanal": 85, "Node-ID": 85, "Name": 160, "Hops": 40,
-                  "Text": 380, "SNR": 45, "RSSI": 45}
+                  "Text": 380, "SNR": 45, "RSSI": 45, "Weg": 50}
         for c in CSV_HEADER:
             t.heading(c, text=c)
             t.column(c, width=widths[c], stretch=(c == "Text"),
-                     anchor="center" if c in ("Hops", "SNR", "RSSI") else "w")
+                     anchor="center" if c in ("Hops", "SNR", "RSSI", "Weg") else "w")
         t.tag_configure("out", foreground="#1a7f37")
         t.tag_configure("err", foreground="#c62828")
         t.tag_configure("sys", foreground="#888")
@@ -819,7 +824,7 @@ class LogView:
         self.st_day = self.stat_table(stat, "Pro Tag und Kanal",
                                       ["Datum", "Kanal", "Empfangen", "Beantwortet", "Ø Hops"], 0)
         self.st_chan = self.stat_table(stat, "Pro Kanal (gesamt)",
-                                       ["Kanal", "Empfangen", "Beantwortet", "Ø Hops", "Ø SNR"], 1)
+                                       ["Kanal", "Empfangen", "davon MQTT", "Beantwortet", "Ø Hops", "Ø SNR"], 1)
         self.st_who = self.stat_table(stat, "Häufigste Absender",
                                       ["Name", "Node-ID", "Nachrichten", "Ø Hops", "Zuletzt"], 2)
         stat.columnconfigure((0, 1, 2), weight=1)
@@ -837,7 +842,7 @@ class LogView:
     def stat_table(parent, title, cols, column):
         ttk.Label(parent, text=title, font=("Segoe UI", 9, "bold")).grid(row=0, column=column, sticky="w", padx=4)
         t = ttk.Treeview(parent, columns=cols, show="headings", height=18)
-        widths = {"Datum": 85, "Kanal": 95, "Name": 140, "Node-ID": 80, "Zuletzt": 85, "Ø Hops": 55, "Ø SNR": 55}
+        widths = {"Datum": 85, "Kanal": 95, "Name": 140, "Node-ID": 80, "Zuletzt": 85, "Ø Hops": 55, "Ø SNR": 55, "davon MQTT": 82}
         for c in cols:
             t.heading(c, text=c)
             t.column(c, width=widths.get(c, 72), stretch=c in ("Kanal", "Name"),
@@ -890,17 +895,20 @@ class LogView:
             return f"{sum(values) / len(values):.1f}" if values else "–"
 
         day = defaultdict(lambda: {"in": 0, "out": 0, "hops": []})
-        chan = defaultdict(lambda: {"in": 0, "out": 0, "hops": [], "snr": []})
+        chan = defaultdict(lambda: {"in": 0, "mqtt": 0, "out": 0, "hops": [], "snr": []})
         who = defaultdict(lambda: {"name": "", "n": 0, "hops": [], "last": ""})
-        for zeit, ev, kanal, nid, name, hops, _text, snr, _rssi in rows:
+        for zeit, ev, kanal, nid, name, hops, _text, snr, _rssi, weg in rows:
             if not kanal:
                 continue
             key = (zeit[:10], kanal)
-            if ev == "Empfangen":
+            if ev in ("Empfangen", "MQTT ignoriert"):
                 for d in (day[key], chan[kanal]):
                     d["in"] += 1
                     d["hops"].append(num(hops))
-                chan[kanal]["snr"].append(num(snr))
+                if weg == "MQTT":
+                    chan[kanal]["mqtt"] += 1
+                else:
+                    chan[kanal]["snr"].append(num(snr))     # SNR nur für Funkempfang sinnvoll
                 w = who[nid]
                 w["name"], w["n"], w["last"] = name, w["n"] + 1, zeit
                 w["hops"].append(num(hops))
@@ -912,7 +920,7 @@ class LogView:
         for (d, k), v in sorted(day.items(), reverse=True):
             self.st_day.insert("", "end", values=(d, k, v["in"], v["out"], avg(v["hops"])))
         for k, v in sorted(chan.items(), key=lambda kv: -kv[1]["in"]):
-            self.st_chan.insert("", "end", values=(k, v["in"], v["out"], avg(v["hops"]), avg(v["snr"])))
+            self.st_chan.insert("", "end", values=(k, v["in"], v["mqtt"], v["out"], avg(v["hops"]), avg(v["snr"])))
         for nid, v in Counter({k: v["n"] for k, v in who.items()}).most_common(50):
             v = who[nid]
             self.st_who.insert("", "end", values=(v["name"], nid, v["n"], avg(v["hops"]), v["last"][5:16]))
@@ -1020,6 +1028,8 @@ def build_menu():
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Auf Smileys reagieren", lambda icon, _: set_option("smileys"),
                          checked=lambda _: settings["optionen"]["smileys"]),
+        pystray.MenuItem("Auf MQTT-Nachrichten reagieren", lambda icon, _: set_option("mqtt"),
+                         checked=lambda _: settings["optionen"]["mqtt"]),
         pystray.MenuItem("Ruhezeit", lambda icon, _: set_option("ruhe_an"),
                          checked=lambda _: settings["optionen"]["ruhe_an"]),
         pystray.MenuItem("Sperrliste …", lambda icon, _: events.put(Blocklist.show)),
