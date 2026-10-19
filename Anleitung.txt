@@ -1,6 +1,6 @@
 MESH-RESPONDER – ANLEITUNG
 ==========================
-Autoresponder Version 1.1.0 / Oktober 2026 für Virtual Meshtastic Nodes
+Autoresponder Version 1.1.1 / Oktober 2026 für Virtual Meshtastic Nodes
 (z. B. Mesh Hessen Client 1.6.4). Rückfragen an Meshtastic #EPP1
 
 Lizenz: Public Domain (Unlicense, https://unlicense.org), siehe Kopf von mesh_responder.py.
@@ -212,6 +212,14 @@ Icon bleibt grau
   - Ist dort der Virtual Node aktiviert und steht "Status: Läuft"?
   - Stimmen Adresse und Port im Setup (Standard 127.0.0.1 / 4404)?
   - Fehlermeldungen stehen in mesh_responder.log.
+
+Programm ist plötzlich weg (kein Icon mehr)
+  - Ab Version 1.1.1 überwacht sich das Programm selbst: Reagiert es 3 Minuten lang nicht,
+    schreibt es den Zustand aller Programmteile in mesh_responder.log und startet sich neu
+    (Log-Eintrag "Neustart nach Hänger"). Bitte diese Log-Stelle bei Rückfragen mitschicken.
+  - Antworten werden im Hintergrund gesendet; eine hängende Funkverbindung friert die
+    Fenster nicht mehr ein.
+  - Sonst: start_mesh_responder.bat erneut starten.
 
 Es kommen keine Fenster
   - Ist "Aktiv" gewählt? Ist die Ruhezeit an?

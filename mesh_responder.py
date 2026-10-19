@@ -41,10 +41,12 @@ Start:  pythonw mesh_responder.py          (normal)
         python  mesh_responder.py --demo   (simuliert Nachrichten, sendet nichts)
 """
 import csv
+import faulthandler
 import json
 import logging
 import os
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -70,7 +72,8 @@ POPUP_TIMEOUT_S = 90                            # danach schließt das Fenster o
 MAX_BYTES = 200                                 # Meshtastic-Textlimit (ca.)
 POPUP_BOTTOM_PX = 320                           # Abstand Fenster–Bildschirmunterkante (Platz für Hinweise
                                                 # des Meshhessen Clients und Windows-Benachrichtigungen)
-VERSION = "1.1.0"
+WATCHDOG_S = 180                                # reagiert das Programm so lange nicht: Neustart
+VERSION = "1.1.1"
 VERSION_DATE = "Oktober 2026"
 # -------------------------------------------------------------------------------
 
@@ -87,13 +90,15 @@ SAMPLE = {"name": "Nodename", "short": "NODE", "id": "!12345678", "wo": "CH1",
           "kanal": "HessenTest", "hops": 3, "snr": "-7.5", "rssi": "-112", "text": "Test", "zeit": "12:00"}
 
 DEMO = "--demo" in sys.argv
-logging.basicConfig(filename=Path(__file__).with_suffix(".log"), encoding="utf-8",
+LOG_FILE = Path(__file__).with_suffix(".log")
+logging.basicConfig(filename=LOG_FILE, encoding="utf-8",
                     level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("mesh_responder")
 events = queue.Queue()        # Aufgaben für den Tk-Thread (Callables)
 state = {"iface": None, "all_chans": {}, "chans": {}, "connected": False,
          "status": "Verbinde …", "active": True, "stop": False, "reconnect": False,
-         "last_reply": {}}    # Node-ID -> Zeitpunkt der letzten Antwort (Zeitsperre)
+         "last_reply": {},    # Node-ID -> Zeitpunkt der letzten Antwort (Zeitsperre)
+         "last_poll": time.time()}   # Lebenszeichen der Oberfläche für den Wachhund
 wake = threading.Event()      # weckt den Mesh-Thread für sofortigen Neuaufbau
 ROOT = None
 ICON = None
@@ -359,11 +364,18 @@ def active_slot(pkt):
 
 
 def send_reply(pkt, text, ereignis="Gesendet"):
+    """Antwort senden – im Hintergrund-Thread. Die Meshtastic-Bibliothek wartet beim Senden
+    endlos, solange der TX-Puffer des Nodes als voll gilt; das darf die Fenster nie einfrieren."""
     iface = state["iface"]
     info = pkt_info(pkt, iface)
     if DEMO or iface is None:
         log_csv(f"Nicht gesendet ({'Demo' if DEMO else 'offline'})", info, text)
         return
+    state["last_reply"][info["id"]] = time.time()      # Zeitsperre sofort, auch wenn Senden dauert
+    threading.Thread(target=_send, args=(iface, pkt, info, text, ereignis), daemon=True).start()
+
+
+def _send(iface, pkt, info, text, ereignis):
     try:
         if is_dm(pkt):
             # DM zurück an den Absender, gleiche Verschlüsselung (PKI) wie die eingehende
@@ -373,7 +385,6 @@ def send_reply(pkt, text, ereignis="Gesendet"):
                            pkiEncrypted=bool(pkt.get("pkiEncrypted")))
         else:
             iface.sendText(text, channelIndex=pkt.get("channel", 0), replyId=pkt.get("id"))
-        state["last_reply"][info["id"]] = time.time()
         log_csv(ereignis, info, text)
     except Exception as e:
         log.exception("Senden fehlgeschlagen")
@@ -1041,6 +1052,35 @@ def build_menu():
     )
 
 
+def watchdog():
+    """Läuft die Oberfläche WATCHDOG_S Sekunden nicht mehr (Programm hängt), werden die
+    Stände aller Threads ins Fehler-Log geschrieben und das Programm startet sich neu."""
+    while not state["stop"]:
+        time.sleep(15)
+        if time.time() - state["last_poll"] < WATCHDOG_S or state["stop"]:
+            continue
+        time.sleep(10)        # zweite Prüfung: nach Ruhezustand/Standby holt die Oberfläche sofort auf
+        stuck = time.time() - state["last_poll"]
+        if stuck < WATCHDOG_S or state["stop"]:
+            continue
+        log.error("Programm reagiert seit %d s nicht – Thread-Stände folgen, danach Neustart", stuck)
+        try:
+            for h in logging.getLogger().handlers:
+                h.flush()
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                faulthandler.dump_traceback(file=f, all_threads=True)
+        except Exception:
+            pass
+        log_csv("Neustart nach Hänger", text=f"keine Reaktion seit {int(stuck)} s")
+        try:
+            args = ["--demo"] if DEMO else []
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), *args], cwd=HERE,
+                             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+        except Exception:
+            log.exception("Neustart fehlgeschlagen")
+        os._exit(1)
+
+
 def rebuild_menu():
     if ICON is not None:
         ICON.menu = build_menu()
@@ -1068,10 +1108,12 @@ def main():
             events.put(lambda p=p: handle_incoming(p))
     else:
         threading.Thread(target=mesh_loop, daemon=True).start()
+    threading.Thread(target=watchdog, daemon=True).start()
 
     shown = {"img": None}
 
     def poll():
+        state["last_poll"] = time.time()
         while not events.empty():
             try:
                 events.get()()
