@@ -1,6 +1,6 @@
 MESH-RESPONDER – ANLEITUNG
 ==========================
-Autoresponder Version 1.2.0 / Oktober 2026 für Virtual Meshtastic Nodes
+Autoresponder Version 1.2.1 / Oktober 2026 für Virtual Meshtastic Nodes
 (z. B. Mesh Hessen Client 1.6.4). Rückfragen an Meshtastic #EPP1
 
 Lizenz: Public Domain (Unlicense, https://unlicense.org), siehe Kopf von mesh_responder.py.
@@ -76,6 +76,22 @@ Autostart mit Windows:
   Ausschalten: Task-Manager -> Autostart-Apps, oder die Verknüpfung wieder löschen.
 
 Wird der Ordner verschoben, den Unterordner .venv löschen und die .bat erneut starten.
+
+
+4a. ALS EXE (OHNE PYTHON)
+-------------------------
+build_exe.bat doppelklicken (braucht einmalig Python und Internet). Ergebnis:
+dist\MeshResponder.exe – eine einzelne Datei (ca. 25 MB), die ohne Python läuft und überall
+hinkopiert werden kann. Sie verhält sich genau wie das Skript.
+  - Einstellungen (mesh_responder.json) und Logs legt die EXE NEBEN SICH ab. Eine vorhandene
+    mesh_responder.json einfach neben die EXE kopieren, dann sind alle Antworttexte und
+    Einstellungen übernommen.
+  - Nicht gleichzeitig EXE und Skript starten, sonst beantworten beide dieselben Nachrichten.
+  - Die EXE ist nicht digital signiert. Windows Defender oder SmartScreen können beim ersten
+    Start warnen oder eine selbst gepackte EXE fälschlich beanstanden (typisch für
+    PyInstaller). Bei Zweifeln lieber das Skript benutzen oder die EXE selbst bauen.
+  - Der erste Start dauert ein paar Sekunden länger (die EXE entpackt sich zunächst).
+  - Autostart: Verknüpfung auf die EXE statt auf die .bat legen (Win+R -> shell:startup).
 
 
 5. DAS TRAY-ICON
@@ -220,6 +236,7 @@ benutzen.
 9. DATEIEN IM ORDNER
 --------------------
   mesh_responder.py         das Programm
+  build_exe.bat, make_icon.py  baut dist\MeshResponder.exe (siehe 4a)
   start_mesh_responder.bat  Start (legt beim ersten Mal .venv an)
   Anleitung.txt             diese Anleitung
   mesh_responder.json       alle Einstellungen und Antworttexte (wird automatisch angelegt)

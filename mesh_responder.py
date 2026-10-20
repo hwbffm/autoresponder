@@ -75,11 +75,12 @@ POPUP_BOTTOM_PX = 320                           # Abstand Fenster–Bildschirmun
 WATCHDOG_S = 180                                # reagiert das Programm so lange nicht: Neustart
 AUTO_MIN_SPERRE_MIN = 5                         # Mindestabstand (Minuten) zwischen Auto-Antworten an
                                                 # denselben Absender, auch wenn die Zeitsperre 0 ist
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 VERSION_DATE = "Oktober 2026"
 # -------------------------------------------------------------------------------
 
-HERE = Path(__file__).resolve().parent
+FROZEN = getattr(sys, "frozen", False)           # True, wenn als .exe (PyInstaller) gestartet
+HERE = Path(sys.executable).parent if FROZEN else Path(__file__).resolve().parent
 SETTINGS_FILE = HERE / "mesh_responder.json"
 CSV_FILE = HERE / "mesh_responder_log.csv"
 CSV_HEADER = ["Zeit", "Ereignis", "Kanal", "Node-ID", "Name", "Hops", "Text", "SNR", "RSSI", "Weg"]
@@ -92,7 +93,7 @@ SAMPLE = {"name": "Nodename", "short": "NODE", "id": "!12345678", "wo": "CH1",
           "kanal": "HessenTest", "hops": 3, "snr": "-7.5", "rssi": "-112", "text": "Test", "zeit": "12:00"}
 
 DEMO = "--demo" in sys.argv
-LOG_FILE = Path(__file__).with_suffix(".log")
+LOG_FILE = HERE / "mesh_responder.log"
 logging.basicConfig(filename=LOG_FILE, encoding="utf-8",
                     level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("mesh_responder")
@@ -1082,7 +1083,9 @@ def watchdog():
         log_csv("Neustart nach Hänger", text=f"keine Reaktion seit {int(stuck)} s")
         try:
             args = ["--demo"] if DEMO else []
-            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), *args], cwd=HERE,
+            cmd = [sys.executable, *args] if FROZEN else [sys.executable, str(Path(__file__).resolve()), *args]
+            env = dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1")   # .exe: eigenes Entpack-Verzeichnis
+            subprocess.Popen(cmd, cwd=HERE, env=env,
                              creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
         except Exception:
             log.exception("Neustart fehlgeschlagen")

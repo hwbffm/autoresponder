@@ -1,6 +1,6 @@
 # Autoresponder für Meshtastic (Virtual Node)
 
-**Version 1.2.0 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
+**Version 1.2.1 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
 
 Kleines Windows-Tray-Programm, das über den **Virtual Node** eines Meshtastic-Clients
 (z. B. [Mesh Hessen Client](https://www.meshhessen.de) 1.6.4) im Mesh mithört. Bei jeder
@@ -52,12 +52,19 @@ Ausführliche Beschreibung, Einstellungen im Mesh Hessen Client und Fehlersuche:
 
 Test ohne Funk: `python mesh_responder.py --demo` (simuliert Nachrichten, sendet nichts).
 
+## Als EXE (ohne Python)
+
+`build_exe.bat` baut mit PyInstaller eine einzelne `dist\MeshResponder.exe` (ca. 25 MB), die ohne
+installiertes Python läuft. Einstellungen und Logs legt die EXE **neben sich** ab.
+Die EXE ist nicht digital signiert; Windows Defender/SmartScreen kann beim ersten Start warnen.
+
 ## Dateien
 
 | Datei | Inhalt |
 |---|---|
 | `mesh_responder.py` | das Programm |
 | `start_mesh_responder.bat` | Starter (legt beim ersten Mal `.venv` an) |
+| `build_exe.bat`, `make_icon.py` | baut `dist\MeshResponder.exe` (nicht im Repo) |
 | `Anleitung.txt` | Bedienungsanleitung |
 | `mesh_responder.json` | eigene Einstellungen – wird automatisch angelegt, nicht im Repo |
 | `mesh_responder_log.csv`, `mesh_responder.log` | Logs – nicht im Repo |
