@@ -61,6 +61,15 @@ SHA256: `d64b7769ad1fd8fe3eb7e5c70e6a3f2f25a0ada8f97f86e55e570e0cc9195916`  (auc
 installiertes Python läuft. Einstellungen und Logs legt die EXE **neben sich** ab.
 Die EXE ist nicht digital signiert; Windows Defender/SmartScreen kann beim ersten Start warnen.
 
+## Keepalive-Proxy (optional)
+
+Clients wie der Mesh Hessen Client senden im Leerlauf nichts an den Node. Ein Meshtastic-Node trennt
+einen TCP-Client, von dem er 15 Minuten nichts hört – der Client verbindet sich dann alle 15 Minuten
+neu, und der Virtual Node (und damit der Autoresponder) verliert jedes Mal die Verbindung.
+`keepalive_proxy.py` (bzw. `KeepaliveProxy.exe`) sitzt zwischen Client und Node, leitet alles
+unverändert weiter und schickt dem Node bei Stille einen Heartbeat. Im Client dann Host `127.0.0.1`,
+Port `4405` eintragen. Details: Anleitung.txt, Abschnitt 4b.
+
 ## Dateien
 
 | Datei | Inhalt |
@@ -68,6 +77,7 @@ Die EXE ist nicht digital signiert; Windows Defender/SmartScreen kann beim erste
 | `mesh_responder.py` | das Programm |
 | `start_mesh_responder.bat` | Starter (legt beim ersten Mal `.venv` an) |
 | `release/MeshResponder.exe` | fertig gebaute EXE (+ `.sha256`) |
+| `keepalive_proxy.py`, `start_keepalive_proxy.bat` | Keepalive-Proxy (optional, eigenes Mini-Programm) |
 | `build_exe.bat`, `make_icon.py` | bauen `dist\MeshResponder.exe` selbst |
 | `Anleitung.txt` | Bedienungsanleitung |
 | `mesh_responder.json` | eigene Einstellungen – wird automatisch angelegt, nicht im Repo |

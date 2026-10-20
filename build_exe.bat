@@ -15,5 +15,9 @@ if not exist .venv\Scripts\python.exe (
     --collect-submodules pubsub ^
     --collect-all meshtastic ^
     mesh_responder.py
+rem Keepalive-Proxy (optional, siehe Anleitung 4b)
+.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onefile --noconsole ^
+    --name KeepaliveProxy --icon mesh_responder.ico keepalive_proxy.py
 echo.
-if exist dist\MeshResponder.exe (echo Fertig: %~dp0dist\MeshResponder.exe) else (echo FEHLER: keine .exe erzeugt)
+if exist dist\MeshResponder.exe (echo Fertig: %~dp0dist\MeshResponder.exe) else (echo FEHLER: keine MeshResponder.exe erzeugt)
+if exist dist\KeepaliveProxy.exe (echo Fertig: %~dp0dist\KeepaliveProxy.exe) else (echo FEHLER: keine KeepaliveProxy.exe erzeugt)

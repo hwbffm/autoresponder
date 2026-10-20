@@ -98,6 +98,37 @@ hinkopiert werden kann. Sie verhält sich genau wie das Skript.
   - Autostart: Verknüpfung auf die EXE statt auf die .bat legen (Win+R -> shell:startup).
 
 
+4b. KEEPALIVE-PROXY (OPTIONAL, GEGEN DIE 15-MINUTEN-TRENNUNG)
+-------------------------------------------------------------
+Problem: Ein Meshtastic-Node trennt einen TCP/WLAN-Client, von dem er 15 Minuten lang nichts gehört
+hat. Der Mesh Hessen Client (getestet 1.6.4.5/1.6.4.6) sendet im Leerlauf nichts (kein Heartbeat) und
+wird deshalb alle 15 Minuten getrennt; er verbindet sich nach ca. 5 Sekunden neu. Dabei startet auch
+sein Virtual Node neu, und der Autoresponder verliert für 10-30 Sekunden die Verbindung.
+Zu erkennen im Client-Log (meshhessen-client.log): "Connection closed by remote host" /
+"Reader thread stopped unexpectedly" im Abstand von genau 15 Minuten.
+
+Lösung: keepalive_proxy.py (oder KeepaliveProxy.exe, siehe 4a) sitzt zwischen Client und Node:
+    Mesh Hessen Client  ->  127.0.0.1:4405 (Proxy)  ->  Node 192.168.10.41:4403
+Der Proxy reicht alle Bytes unverändert weiter und sendet dem Node nach 60 s Stille einen Heartbeat
+(ToRadio.heartbeat, genau wie die offiziellen Clients). Er fügt ihn nur zwischen zwei Nachrichten ein.
+  1. Proxy starten: KeepaliveProxy.exe doppelklicken (oder start_keepalive_proxy.bat). Standard:
+     Port 4405 lokal, Node 192.168.10.41:4403. Andere Adressen:
+       KeepaliveProxy.exe --node 192.168.10.50:4403 --listen 127.0.0.1:4405 --interval 60
+  2. Im Mesh Hessen Client: Trennen, Host = 127.0.0.1, Port = 4405, Verbinden.
+  3. Autostart: Verknüpfung auf KeepaliveProxy.exe in shell:startup legen (Win+R -> shell:startup).
+     Der Client versucht bei fehlender Verbindung 15 Mal automatisch, es zu wiederholen.
+Ausschalten: im Client wieder Host = IP des Nodes, Port = 4403 eintragen; den Proxy beenden
+(Task-Manager -> KeepaliveProxy) und die Autostart-Verknüpfung löschen.
+Hinweise:
+  - Läuft der Proxy nicht, erreicht der Client den Node nicht (Port 4405 antwortet nicht).
+  - Der Node nimmt nur EINEN TCP-Client an; ein zweiter wirft den ersten raus. Nichts anderes
+    (Handy-App, zweiter Client) darf direkt zum Node verbinden – Handy-Apps an den Virtual Node
+    des Clients hängen (Port 4404).
+  - Der Proxy schreibt keepalive_proxy.log neben sich: Verbindungsbeginn, Heartbeat Nr. 1 und
+    danach alle 15 Heartbeats, und beim Trennen die Dauer, die Zahl der Heartbeats und den Grund.
+  - Der Proxy ändert nichts am Funkverkehr und sendet nichts ins Mesh.
+
+
 5. DAS TRAY-ICON
 ----------------
   Gelbes M  = verbunden
@@ -240,7 +271,8 @@ benutzen.
 9. DATEIEN IM ORDNER
 --------------------
   mesh_responder.py         das Programm
-  build_exe.bat, make_icon.py  baut dist\MeshResponder.exe (siehe 4a)
+  build_exe.bat, make_icon.py  baut dist\MeshResponder.exe und dist\KeepaliveProxy.exe (siehe 4a)
+  keepalive_proxy.py        Keepalive-Proxy (siehe 4b), start_keepalive_proxy.bat startet ihn
   start_mesh_responder.bat  Start (legt beim ersten Mal .venv an)
   Anleitung.txt             diese Anleitung
   mesh_responder.json       alle Einstellungen und Antworttexte (wird automatisch angelegt)
