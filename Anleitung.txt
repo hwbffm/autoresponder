@@ -1,6 +1,6 @@
 MESH-RESPONDER – ANLEITUNG
 ==========================
-Autoresponder Version 1.1.1 / Oktober 2026 für Virtual Meshtastic Nodes
+Autoresponder Version 1.2.0 / Oktober 2026 für Virtual Meshtastic Nodes
 (z. B. Mesh Hessen Client 1.6.4). Rückfragen an Meshtastic #EPP1
 
 Lizenz: Public Domain (Unlicense, https://unlicense.org), siehe Kopf von mesh_responder.py.
@@ -92,6 +92,10 @@ Rechtsklick auf das Icon öffnet das Menü:
   Antwort Kanäle  ->         pro Kanal den aktiven Antwortplatz 1-9 wählen
   Antwort DMs     ->         aktiven Antwortplatz 1-9 für Direktnachrichten
                              (⚡ sofort = dieser Platz antwortet ohne Rückfrage)
+  DMs automatisch            angehakt: JEDE Direktnachricht wird sofort mit dem aktiven
+    beantworten              DM-Text beantwortet, ohne Fenster (Kanalnachrichten bleiben
+                             unverändert). Gut für Abwesenheit, z. B. "Bin gerade nicht am
+                             PC". Siehe 6a.
   Antworttexte bearbeiten …  die 9 + 9 Antworttexte (siehe 6.)
   Auf Smileys reagieren      angehakt: auch reine Smiley-Nachrichten/Reaktionen (👍 😂)
                              öffnen ein Fenster; sonst nur Log-Eintrag
@@ -135,6 +139,27 @@ jede DM sofort beantwortet, ohne Fenster.
 Emojis können normal eingetippt werden (auch mit Win+.).
 
 
+6a. DMs AUTOMATISCH BEANTWORTEN
+-------------------------------
+Drei Möglichkeiten, Direktnachrichten ohne Rückfrage zu beantworten:
+  1. Tray-Menü "DMs automatisch beantworten": schnell ein- und ausschaltbar, gilt für alle
+     DM-Plätze. Der Tooltip des Tray-Icons zeigt dann "(DM-Auto an)".
+  2. Im Editor beim DM-Platz "ohne Bestätigung" ankreuzen (gilt nur, wenn dieser Platz
+     aktiv ist).
+  3. Ruhezeit mit "automatisch antworten" (Setup) – gilt auch für Kanalnachrichten.
+
+Abwesenheitsnotiz einrichten: Antworttext in einen DM-Platz schreiben (Editor), diesen Platz
+im Menü "Antwort DMs" wählen, dann "DMs automatisch beantworten" anhaken.
+
+Schutz vor Endlosschleifen: Beantwortet ein anderer Autoresponder (oder Bot) unsere Antwort
+wieder automatisch, würden beide sich endlos antworten und Sendezeit verbrauchen. Deshalb gilt
+bei automatischen Antworten immer ein Mindestabstand von 5 Minuten pro Absender – auch wenn
+die Zeitsperre im Setup auf 0 steht (eine längere Zeitsperre bleibt maßgeblich). Weitere
+Nachrichten dieses Absenders in der Zwischenzeit stehen als "Zeitsperre …" im Log.
+Bleibt der DM-Antworttext leer, öffnet sich wie gewohnt das Fenster.
+Bei öffentlichen Kanälen gibt es bewusst keine Autoantwort (Sendezeit des Mesh).
+
+
 7. SETUP
 --------
 Verbindung
@@ -155,7 +180,8 @@ Hinweis bei neuer Nachricht
   Ton und/oder Windows-Benachrichtigung, wenn ein Fenster aufgeht.
 
 Reihenfolge der Regeln für eine eingehende Nachricht:
-  Sperrliste -> Smiley-Filter -> MQTT-Filter -> Zeitsperre -> DM "ohne Bestätigung" -> Ruhezeit -> Fenster
+  Sperrliste -> Smiley-Filter -> MQTT-Filter -> Zeitsperre (bei DM-Auto mind. 5 min)
+  -> DM-Auto ("DMs automatisch beantworten" oder "ohne Bestätigung") -> Ruhezeit -> Fenster
 
 
 8. LOG UND STATISTIK

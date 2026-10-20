@@ -73,7 +73,9 @@ MAX_BYTES = 200                                 # Meshtastic-Textlimit (ca.)
 POPUP_BOTTOM_PX = 320                           # Abstand Fenster–Bildschirmunterkante (Platz für Hinweise
                                                 # des Meshhessen Clients und Windows-Benachrichtigungen)
 WATCHDOG_S = 180                                # reagiert das Programm so lange nicht: Neustart
-VERSION = "1.1.1"
+AUTO_MIN_SPERRE_MIN = 5                         # Mindestabstand (Minuten) zwischen Auto-Antworten an
+                                                # denselben Absender, auch wenn die Zeitsperre 0 ist
+VERSION = "1.2.0"
 VERSION_DATE = "Oktober 2026"
 # -------------------------------------------------------------------------------
 
@@ -132,7 +134,7 @@ def default_settings():
             "verbindung": {"host": HOST, "port": PORT},
             "kanaele": list(DEFAULT_CHANNELS),
             "sperrliste": {},     # Node-ID -> Name
-            "optionen": {"smileys": False, "mqtt": False, "sperre_min": 10, "ton": True, "benachrichtigung": True,
+            "optionen": {"smileys": False, "mqtt": False, "dm_auto": False, "sperre_min": 10, "ton": True, "benachrichtigung": True,
                          "ruhe_an": False, "ruhe_von": "22:00", "ruhe_bis": "07:00", "ruhe_auto": False}}
 
 
@@ -393,15 +395,19 @@ def _send(iface, pkt, info, text, ereignis):
 
 def handle_incoming(pkt):
     info = pkt_info(pkt, state["iface"])
+    cat = "dm" if is_dm(pkt) else "kanal"
+    slot = active_slot(pkt)
+    text = settings[cat]["texte"][slot]
+    # DM wird sofort beantwortet: globaler Tray-Schalter oder "ohne Bestätigung" beim aktiven Platz
+    auto = cat == "dm" and bool(text.strip()) and (settings["optionen"]["dm_auto"] or settings["dm"]["auto"][slot])
     sperre = settings["optionen"]["sperre_min"]
+    if auto:
+        sperre = max(sperre, AUTO_MIN_SPERRE_MIN)       # Schutz vor Endlosschleifen mit anderen Autorespondern
     last = state["last_reply"].get(info["id"])
     if sperre and last and time.time() - last < sperre * 60:
         log_csv(f"Zeitsperre – schon vor {int((time.time() - last) / 60)} min beantwortet", info)
         return
-    cat = "dm" if is_dm(pkt) else "kanal"
-    slot = active_slot(pkt)
-    text = settings[cat]["texte"][slot]
-    if cat == "dm" and settings["dm"]["auto"][slot] and text.strip():
+    if auto:
         send_reply(pkt, render(text, info), "Automatisch gesendet")
         return
     if in_quiet_time():
@@ -1035,6 +1041,8 @@ def build_menu():
                          if chans else None, enabled=bool(chans)),
         pystray.MenuItem("Antwort DMs", pystray.Menu(
             *slot_items(lambda: settings["dm"]["aktiv"], set_dm, "dm"))),
+        pystray.MenuItem("DMs automatisch beantworten", lambda icon, _: set_option("dm_auto"),
+                         checked=lambda _: settings["optionen"]["dm_auto"]),
         pystray.MenuItem("Antworttexte bearbeiten …", lambda icon, _: events.put(Editor.show)),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Auf Smileys reagieren", lambda icon, _: set_option("smileys"),
@@ -1122,7 +1130,8 @@ def main():
         img = ICON_OK if state["connected"] else ICON_OFF
         if shown["img"] is not img:
             icon.icon = shown["img"] = img
-        extra = ("" if state["active"] else " (inaktiv)") + (" (Ruhezeit)" if in_quiet_time() else "")
+        extra = (("" if state["active"] else " (inaktiv)") + (" (Ruhezeit)" if in_quiet_time() else "")
+                 + (" (DM-Auto an)" if settings["optionen"]["dm_auto"] else ""))
         title = f"Mesh-Responder{extra} – {state['status']}"[:127]
         if icon.title != title:
             icon.title = title
