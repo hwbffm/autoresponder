@@ -2,11 +2,12 @@
 .venv/
 __pycache__/
 
-# EXE-Build (PyInstaller) – die .exe wird nicht ins Repo eingecheckt
+# EXE-Build (PyInstaller) – Build-Ordner und .exe nicht einchecken, Ausnahme: fertige EXE in release/
 build/
 dist/
 *.spec
 *.exe
+!release/MeshResponder.exe
 mesh_responder.ico
 
 # persönliche Einstellungen und Logs

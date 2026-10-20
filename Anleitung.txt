@@ -80,7 +80,11 @@ Wird der Ordner verschoben, den Unterordner .venv löschen und die .bat erneut s
 
 4a. ALS EXE (OHNE PYTHON)
 -------------------------
-build_exe.bat doppelklicken (braucht einmalig Python und Internet). Ergebnis:
+Fertig gebaute EXE (Version 1.2.1) zum Herunterladen:
+  https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe
+  SHA256: d64b7769ad1fd8fe3eb7e5c70e6a3f2f25a0ada8f97f86e55e570e0cc9195916
+  Prüfen: certutil -hashfile MeshResponder.exe SHA256
+Oder selbst bauen: build_exe.bat doppelklicken (braucht einmalig Python und Internet). Ergebnis:
 dist\MeshResponder.exe – eine einzelne Datei (ca. 25 MB), die ohne Python läuft und überall
 hinkopiert werden kann. Sie verhält sich genau wie das Skript.
   - Einstellungen (mesh_responder.json) und Logs legt die EXE NEBEN SICH ab. Eine vorhandene

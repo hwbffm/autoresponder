@@ -54,6 +54,9 @@ Test ohne Funk: `python mesh_responder.py --demo` (simuliert Nachrichten, sendet
 
 ## Als EXE (ohne Python)
 
+**Fertig gebaut zum Herunterladen:** [`release/MeshResponder.exe`](https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe) (Version 1.2.1, ca. 24 MB)  
+SHA256: `d64b7769ad1fd8fe3eb7e5c70e6a3f2f25a0ada8f97f86e55e570e0cc9195916`  (auch in `release/MeshResponder.exe.sha256`; prüfen mit `certutil -hashfile MeshResponder.exe SHA256`)
+
 `build_exe.bat` baut mit PyInstaller eine einzelne `dist\MeshResponder.exe` (ca. 25 MB), die ohne
 installiertes Python läuft. Einstellungen und Logs legt die EXE **neben sich** ab.
 Die EXE ist nicht digital signiert; Windows Defender/SmartScreen kann beim ersten Start warnen.
@@ -64,7 +67,8 @@ Die EXE ist nicht digital signiert; Windows Defender/SmartScreen kann beim erste
 |---|---|
 | `mesh_responder.py` | das Programm |
 | `start_mesh_responder.bat` | Starter (legt beim ersten Mal `.venv` an) |
-| `build_exe.bat`, `make_icon.py` | baut `dist\MeshResponder.exe` (nicht im Repo) |
+| `release/MeshResponder.exe` | fertig gebaute EXE (+ `.sha256`) |
+| `build_exe.bat`, `make_icon.py` | bauen `dist\MeshResponder.exe` selbst |
 | `Anleitung.txt` | Bedienungsanleitung |
 | `mesh_responder.json` | eigene Einstellungen – wird automatisch angelegt, nicht im Repo |
 | `mesh_responder_log.csv`, `mesh_responder.log` | Logs – nicht im Repo |
