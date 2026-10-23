@@ -63,9 +63,13 @@ Die EXE ist nicht digital signiert; Windows Defender/SmartScreen kann beim erste
 
 ## Keepalive-Proxy (optional)
 
-Clients wie der Mesh Hessen Client senden im Leerlauf nichts an den Node. Ein Meshtastic-Node trennt
-einen TCP-Client, von dem er 15 Minuten nichts hört – der Client verbindet sich dann alle 15 Minuten
-neu, und der Virtual Node (und damit der Autoresponder) verliert jedes Mal die Verbindung.
+Ein Meshtastic-Node schließt eine TCP-Verbindung (WLAN/Ethernet), wenn vom Client 15 Minuten lang
+kein einziges Byte kommt – eine Schutzfunktion der Firmware, denn der Node nimmt nur einen TCP-Client
+gleichzeitig an. Es zählt nur, was der Client an den Node schickt; empfangene Nachrichten zählen nicht.
+Die offiziellen Meshtastic-Apps senden deshalb regelmäßig einen Heartbeat. Ein Client, der im Leerlauf
+nichts sendet (z. B. Meshhessen Client 1.6.4.x), wird alle 15 Minuten getrennt und verbindet sich
+neu – und jedes Mal startet sein Virtual Node neu, der Autoresponder verliert kurz die Verbindung.
+Zu erkennen im Client-Log an Trennungen im Abstand von genau 15 Minuten.
 Abhilfe schafft der **[Keepalive-Proxy](https://github.com/hwbffm/keepalive-proxy)** (eigenes Repository): Er sitzt zwischen Client
 und Node, leitet alles unverändert weiter und schickt dem Node bei Stille einen Heartbeat. Im Client
 dann Host `127.0.0.1`, Port `4405` eintragen. Statusnachrichten des Proxys (Absender „Ping Proxy“)
@@ -82,6 +86,14 @@ beantwortet der Autoresponder nicht.
 | `Anleitung.txt` | Bedienungsanleitung |
 | `mesh_responder.json` | eigene Einstellungen – wird automatisch angelegt, nicht im Repo |
 | `mesh_responder_log.csv`, `mesh_responder.log` | Logs – nicht im Repo |
+
+## Danke
+
+Beide Programme bauen auf dem **[Meshhessen Client](https://github.com/SMLunchen/mh_windowsclient)**
+von SMLunchen auf ([Handbuch](https://meshhessenclient.de/handbuch/)). Ein großes Dankeschön an
+SMLunchen und alle Mitwirkenden für die tolle Arbeit! Ohne den Virtual Node des Clients gäbe es diesen Autoresponder nicht. Der Client wird mit jedem Release
+besser, zuletzt 1.7.0 mit Funk-Echo, Telemetrie-Dashboard und 3D-Gelände auf der Karte. Danke auch
+an die **[Mesh-Hessen-Community](https://www.meshhessen.de)** für Netz, MQTT-Server und Dokumentation.
 
 ## Lizenz und Kontakt
 

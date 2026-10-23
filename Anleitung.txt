@@ -101,7 +101,9 @@ hinkopiert werden kann. Sie verhält sich genau wie das Skript.
 4b. KEEPALIVE-PROXY (OPTIONAL, GEGEN DIE 15-MINUTEN-TRENNUNG)
 -------------------------------------------------------------
 Problem: Ein Meshtastic-Node trennt einen TCP/WLAN-Client, von dem er 15 Minuten lang nichts gehört
-hat. Der Mesh Hessen Client (getestet 1.6.4.5/1.6.4.6) sendet im Leerlauf nichts (kein Heartbeat) und
+hat – eine Schutzfunktion der Firmware, weil der Node nur einen TCP-Client gleichzeitig annimmt.
+Es zählt nur, was der Client an den Node schickt; empfangene Nachrichten zählen nicht. Die
+offiziellen Meshtastic-Apps senden deshalb regelmäßig einen Heartbeat. Der Mesh Hessen Client (getestet 1.6.4.5/1.6.4.6) sendet im Leerlauf nichts (kein Heartbeat) und
 wird deshalb alle 15 Minuten getrennt; er verbindet sich nach ca. 5 Sekunden neu. Dabei startet auch
 sein Virtual Node neu, und der Autoresponder verliert für 10-30 Sekunden die Verbindung.
 Zu erkennen im Client-Log (meshhessen-client.log): "Connection closed by remote host" /
