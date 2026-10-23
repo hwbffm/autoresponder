@@ -1,6 +1,6 @@
 # Autoresponder für Meshtastic (Virtual Node)
 
-**Version 1.2.1 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
+**Version 1.2.4 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
 
 Kleines Windows-Tray-Programm, das über den **Virtual Node** eines Meshtastic-Clients
 (z. B. [Mesh Hessen Client](https://www.meshhessen.de) 1.6.4) im Mesh mithört. Bei jeder
@@ -54,8 +54,8 @@ Test ohne Funk: `python mesh_responder.py --demo` (simuliert Nachrichten, sendet
 
 ## Als EXE (ohne Python)
 
-**Fertig gebaut zum Herunterladen:** [`release/MeshResponder.exe`](https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe) (Version 1.2.1, ca. 24 MB)  
-SHA256: `d64b7769ad1fd8fe3eb7e5c70e6a3f2f25a0ada8f97f86e55e570e0cc9195916`  (auch in `release/MeshResponder.exe.sha256`; prüfen mit `certutil -hashfile MeshResponder.exe SHA256`)
+**Fertig gebaut zum Herunterladen:** [`release/MeshResponder.exe`](https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe) (Version 1.2.4, ca. 25 MB)  
+SHA256: `c14ff17714271d0de005a5319162b4db8d93f454e96da91bac8961d73fd981c2`  (auch in `release/MeshResponder.exe.sha256`; prüfen mit `certutil -hashfile MeshResponder.exe SHA256`)
 
 `build_exe.bat` baut mit PyInstaller eine einzelne `dist\MeshResponder.exe` (ca. 25 MB), die ohne
 installiertes Python läuft. Einstellungen und Logs legt die EXE **neben sich** ab.
@@ -66,9 +66,10 @@ Die EXE ist nicht digital signiert; Windows Defender/SmartScreen kann beim erste
 Clients wie der Mesh Hessen Client senden im Leerlauf nichts an den Node. Ein Meshtastic-Node trennt
 einen TCP-Client, von dem er 15 Minuten nichts hört – der Client verbindet sich dann alle 15 Minuten
 neu, und der Virtual Node (und damit der Autoresponder) verliert jedes Mal die Verbindung.
-`keepalive_proxy.py` (bzw. `KeepaliveProxy.exe`) sitzt zwischen Client und Node, leitet alles
-unverändert weiter und schickt dem Node bei Stille einen Heartbeat. Im Client dann Host `127.0.0.1`,
-Port `4405` eintragen. Details: Anleitung.txt, Abschnitt 4b.
+Abhilfe schafft der **[Keepalive-Proxy](https://github.com/hwbffm/keepalive-proxy)** (eigenes Repository): Er sitzt zwischen Client
+und Node, leitet alles unverändert weiter und schickt dem Node bei Stille einen Heartbeat. Im Client
+dann Host `127.0.0.1`, Port `4405` eintragen. Statusnachrichten des Proxys (Absender „Ping Proxy“)
+beantwortet der Autoresponder nicht.
 
 ## Dateien
 
@@ -77,7 +78,6 @@ Port `4405` eintragen. Details: Anleitung.txt, Abschnitt 4b.
 | `mesh_responder.py` | das Programm |
 | `start_mesh_responder.bat` | Starter (legt beim ersten Mal `.venv` an) |
 | `release/MeshResponder.exe` | fertig gebaute EXE (+ `.sha256`) |
-| `keepalive_proxy.py`, `start_keepalive_proxy.bat` | Keepalive-Proxy (optional, eigenes Mini-Programm) |
 | `build_exe.bat`, `make_icon.py` | bauen `dist\MeshResponder.exe` selbst |
 | `Anleitung.txt` | Bedienungsanleitung |
 | `mesh_responder.json` | eigene Einstellungen – wird automatisch angelegt, nicht im Repo |

@@ -1,6 +1,6 @@
 MESH-RESPONDER – ANLEITUNG
 ==========================
-Autoresponder Version 1.2.1 / Oktober 2026 für Virtual Meshtastic Nodes
+Autoresponder Version 1.2.4 / Oktober 2026 für Virtual Meshtastic Nodes
 (z. B. Mesh Hessen Client 1.6.4). Rückfragen an Meshtastic #EPP1
 
 Lizenz: Public Domain (Unlicense, https://unlicense.org), siehe Kopf von mesh_responder.py.
@@ -80,9 +80,9 @@ Wird der Ordner verschoben, den Unterordner .venv löschen und die .bat erneut s
 
 4a. ALS EXE (OHNE PYTHON)
 -------------------------
-Fertig gebaute EXE (Version 1.2.1) zum Herunterladen:
+Fertig gebaute EXE (Version 1.2.4) zum Herunterladen:
   https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe
-  SHA256: d64b7769ad1fd8fe3eb7e5c70e6a3f2f25a0ada8f97f86e55e570e0cc9195916
+  SHA256: c14ff17714271d0de005a5319162b4db8d93f454e96da91bac8961d73fd981c2
   Prüfen: certutil -hashfile MeshResponder.exe SHA256
 Oder selbst bauen: build_exe.bat doppelklicken (braucht einmalig Python und Internet). Ergebnis:
 dist\MeshResponder.exe – eine einzelne Datei (ca. 25 MB), die ohne Python läuft und überall
@@ -107,26 +107,11 @@ sein Virtual Node neu, und der Autoresponder verliert für 10-30 Sekunden die Ve
 Zu erkennen im Client-Log (meshhessen-client.log): "Connection closed by remote host" /
 "Reader thread stopped unexpectedly" im Abstand von genau 15 Minuten.
 
-Lösung: keepalive_proxy.py (oder KeepaliveProxy.exe, siehe 4a) sitzt zwischen Client und Node:
-    Mesh Hessen Client  ->  127.0.0.1:4405 (Proxy)  ->  Node 192.168.10.41:4403
-Der Proxy reicht alle Bytes unverändert weiter und sendet dem Node nach 60 s Stille einen Heartbeat
-(ToRadio.heartbeat, genau wie die offiziellen Clients). Er fügt ihn nur zwischen zwei Nachrichten ein.
-  1. Proxy starten: KeepaliveProxy.exe doppelklicken (oder start_keepalive_proxy.bat). Standard:
-     Port 4405 lokal, Node 192.168.10.41:4403. Andere Adressen:
-       KeepaliveProxy.exe --node 192.168.10.50:4403 --listen 127.0.0.1:4405 --interval 60
-  2. Im Mesh Hessen Client: Trennen, Host = 127.0.0.1, Port = 4405, Verbinden.
-  3. Autostart: Verknüpfung auf KeepaliveProxy.exe in shell:startup legen (Win+R -> shell:startup).
-     Der Client versucht bei fehlender Verbindung 15 Mal automatisch, es zu wiederholen.
-Ausschalten: im Client wieder Host = IP des Nodes, Port = 4403 eintragen; den Proxy beenden
-(Task-Manager -> KeepaliveProxy) und die Autostart-Verknüpfung löschen.
-Hinweise:
-  - Läuft der Proxy nicht, erreicht der Client den Node nicht (Port 4405 antwortet nicht).
-  - Der Node nimmt nur EINEN TCP-Client an; ein zweiter wirft den ersten raus. Nichts anderes
-    (Handy-App, zweiter Client) darf direkt zum Node verbinden – Handy-Apps an den Virtual Node
-    des Clients hängen (Port 4404).
-  - Der Proxy schreibt keepalive_proxy.log neben sich: Verbindungsbeginn, Heartbeat Nr. 1 und
-    danach alle 15 Heartbeats, und beim Trennen die Dauer, die Zahl der Heartbeats und den Grund.
-  - Der Proxy ändert nichts am Funkverkehr und sendet nichts ins Mesh.
+Abhilfe: der Keepalive-Proxy, ein eigenes kleines Tray-Programm mit eigener Anleitung:
+  https://github.com/hwbffm/keepalive-proxy
+Er sitzt zwischen Client und Node (Client -> 127.0.0.1:4405 -> Node:4403) und schickt dem Node
+bei Stille einen Heartbeat. Seine Statusnachrichten kommen im Client als Direktnachricht vom
+Absender "Ping Proxy" (!50696e67) an; der Autoresponder beantwortet sie nicht (ab 1.2.3).
 
 
 5. DAS TRAY-ICON
@@ -271,13 +256,13 @@ benutzen.
 9. DATEIEN IM ORDNER
 --------------------
   mesh_responder.py         das Programm
-  build_exe.bat, make_icon.py  baut dist\MeshResponder.exe und dist\KeepaliveProxy.exe (siehe 4a)
-  keepalive_proxy.py        Keepalive-Proxy (siehe 4b), start_keepalive_proxy.bat startet ihn
+  build_exe.bat, make_icon.py  baut dist\MeshResponder.exe (siehe 4a)
   start_mesh_responder.bat  Start (legt beim ersten Mal .venv an)
   Anleitung.txt             diese Anleitung
   mesh_responder.json       alle Einstellungen und Antworttexte (wird automatisch angelegt)
   mesh_responder_log.csv    Nachrichten-Log
-  mesh_responder.log        technisches Fehler-Log
+  mesh_responder.log        technisches Fehler-Log (ab 1.2.4 begrenzt: höchstens 3 Dateien
+                            zu 500 kB, .log/.log.1/.log.2, die älteste wird gelöscht)
   .venv\                    Python-Umgebung (kann gelöscht werden, wird neu angelegt)
 
 Zum Weitergeben an andere: mesh_responder.py, start_mesh_responder.bat und

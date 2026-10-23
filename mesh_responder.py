@@ -44,6 +44,7 @@ import csv
 import faulthandler
 import json
 import logging
+import logging.handlers
 import os
 import queue
 import subprocess
@@ -75,7 +76,8 @@ POPUP_BOTTOM_PX = 320                           # Abstand Fenster–Bildschirmun
 WATCHDOG_S = 180                                # reagiert das Programm so lange nicht: Neustart
 AUTO_MIN_SPERRE_MIN = 5                         # Mindestabstand (Minuten) zwischen Auto-Antworten an
                                                 # denselben Absender, auch wenn die Zeitsperre 0 ist
-VERSION = "1.2.1"
+PROXY_ID = "!50696e67"                          # Statusnachrichten des Keepalive-Proxys ("Ping Proxy")
+VERSION = "1.2.4"
 VERSION_DATE = "Oktober 2026"
 # -------------------------------------------------------------------------------
 
@@ -94,7 +96,9 @@ SAMPLE = {"name": "Nodename", "short": "NODE", "id": "!12345678", "wo": "CH1",
 
 DEMO = "--demo" in sys.argv
 LOG_FILE = HERE / "mesh_responder.log"
-logging.basicConfig(filename=LOG_FILE, encoding="utf-8",
+# begrenzt: höchstens 3 × 500 kB (mesh_responder.log, .log.1, .log.2)
+logging.basicConfig(handlers=[logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=500_000, backupCount=2,
+                                                                   encoding="utf-8")],
                     level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("mesh_responder")
 events = queue.Queue()        # Aufgaben für den Tk-Thread (Callables)
@@ -303,7 +307,7 @@ def pkt_info(pkt, iface):
 
 
 def on_text(packet, interface):
-    if not state["active"] or packet.get("from") == interface.myInfo.my_node_num:
+    if not state["active"] or packet.get("from") in (interface.myInfo.my_node_num, int(PROXY_ID[1:], 16)):
         return
     if not is_dm(packet) and packet.get("channel", 0) not in state["chans"]:
         return
@@ -336,7 +340,7 @@ def mesh_loop():
             state["reconnect"] = False
             host, port = settings["verbindung"]["host"], int(settings["verbindung"]["port"])
             state["status"] = f"Verbinde mit {host}:{port} …"
-            iface = ti.TCPInterface(host, portNumber=port)
+            iface = ti.TCPInterface(host, portNumber=port, timeout=30)   # Standard 300 s: Hänger nach Fehlstart des Virtual Nodes
             state.update(iface=iface, all_chans=channel_names(iface), connected=True)
             apply_channel_filter()
             state["status"] = "Verbunden – " + (", ".join(f"{n} (CH{i})" for i, n in state["chans"].items())
