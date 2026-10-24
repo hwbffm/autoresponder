@@ -1,6 +1,6 @@
 # Autoresponder für Meshtastic (Virtual Node)
 
-**Version 1.2.5 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
+**Version 1.3.0 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
 
 Kleines Windows-Tray-Programm, das über den **Virtual Node** eines Meshtastic-Clients
 (z. B. [Mesh Hessen Client](https://www.meshhessen.de) 1.6.4) im Mesh mithört. Bei jeder
@@ -18,7 +18,12 @@ Empfangen: CH1 | Hops: 3
 
 - Tray-Icon: gelbes **M** = verbunden, grau = keine Verbindung
 - Reagiert auf frei wählbare Kanäle (z. B. HessenTest, ShortSlow) und auf DMs
-- Antwort immer dorthin, wo die Nachricht herkam (Kanal oder DM, PKI-verschlüsselt wie eingehend)
+- Antwort dorthin, wo die Nachricht herkam (Kanal oder DM, PKI-verschlüsselt wie eingehend)
+- **Antwort als DM statt im Kanal**, im Setup pro Kanal wählbar – Standard für ShortSlow und
+  Mesh Hessen, wie von [Mesh Hessen](https://www.meshhessen.de) erbeten (Kanäle frei halten,
+  getestet wird in HessenTest)
+- **Bot-Erkennung:** Hessenbot, Monitor-Nodes, 🤖-Nachrichten und typische Autoresponder-Texte
+  (z. B. Hops + SNR) werden erkannt und nie beantwortet – keine Ping-Pong-Schleifen
 - 9 Antworttexte für Kanäle, 9 für DMs; aktiver Platz pro Kanal wählbar
 - Platzhalter: `{name} {short} {id} {wo} {kanal} {hops} {snr} {rssi} {text} {zeit}`
 - Eigener Text direkt im Nachrichtenfenster möglich
@@ -30,7 +35,7 @@ Empfangen: CH1 | Hops: 3
 - Filter für Nachrichten, die über MQTT (Internet) statt per Funk kamen
 - Ton und Windows-Benachrichtigung bei neuer Nachricht
 - Log als CSV (Excel) und als Tabelle mit Statistik im Programm
-- Setup im Programm: Adresse/Port des Nodes, Kanäle, Zeitsperre, Ruhezeiten
+- Setup im Programm: Adresse/Port des Nodes, Kanäle, Antwort als DM, Bots, Zeitsperre, Ruhezeiten
 - Emoji-Korrektur für die Tk-Eingabe unter Windows
 - Wachhund: friert das Programm ein, startet es sich nach 3 Minuten selbst neu
 - Tray-Symbol wird alle 20 s geprüft und bei Bedarf neu angelegt (z. B. wenn die Taskleiste
@@ -56,8 +61,8 @@ Test ohne Funk: `python mesh_responder.py --demo` (simuliert Nachrichten, sendet
 
 ## Als EXE (ohne Python)
 
-**Fertig gebaut zum Herunterladen:** [`release/MeshResponder.exe`](https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe) (Version 1.2.5, ca. 25 MB)  
-SHA256: `b9daae37f56bb806ec01a290a9598bb497345d28ffa694dc35e236fb6e63ad08`  (auch in `release/MeshResponder.exe.sha256`; prüfen mit `certutil -hashfile MeshResponder.exe SHA256`)
+**Fertig gebaut zum Herunterladen:** [`release/MeshResponder.exe`](https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe) (Version 1.3.0, ca. 25 MB)  
+SHA256: `a832354dc234f5087e956ebbd171dec798d040071ec952263cac301a63f7c2c3`  (auch in `release/MeshResponder.exe.sha256`; prüfen mit `certutil -hashfile MeshResponder.exe SHA256`)
 
 `build_exe.bat` baut mit PyInstaller eine einzelne `dist\MeshResponder.exe` (ca. 25 MB), die ohne
 installiertes Python läuft. Einstellungen und Logs legt die EXE **neben sich** ab.

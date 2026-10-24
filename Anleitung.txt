@@ -1,6 +1,6 @@
 MESH-RESPONDER – ANLEITUNG
 ==========================
-Autoresponder Version 1.2.5 / Oktober 2026 für Virtual Meshtastic Nodes
+Autoresponder Version 1.3.0 / Oktober 2026 für Virtual Meshtastic Nodes
 (z. B. Mesh Hessen Client 1.6.4). Rückfragen an Meshtastic #EPP1
 
 Lizenz: Public Domain (Unlicense, https://unlicense.org), siehe Kopf von mesh_responder.py.
@@ -21,9 +21,15 @@ kleines Fenster auf:
   - Nein    -> nichts wird gesendet (das Fenster schließt sich auch nach 90 s von selbst)
   - Absender sperren -> dieser Absender löst künftig kein Fenster mehr aus
 
-Die Antwort geht immer dorthin, wo die Nachricht herkam:
-  Kanalnachricht -> in denselben Kanal (als Antwort auf die Nachricht)
+Wohin die Antwort geht:
+  Kanalnachricht  -> in denselben Kanal (als Antwort auf die Nachricht) – oder, wenn der Kanal
+                     im Setup unter "Antwort als Direktnachricht" angehakt ist, als DM an den
+                     Absender (ab 1.3.0; Standard für ShortSlow und Mesh Hessen)
   Direktnachricht -> als DM zurück an den Absender
+Nachrichten von Bots werden nicht beantwortet (ab 1.3.0, siehe 7. Setup).
+
+Bitte von Mesh Hessen: In ShortSlow (Routing, echte Nachrichten) und Mesh Hessen (Gespräche)
+keine Bot-Antworten im Kanal. Zum Testen ist HessenTest da, sonst per DM antworten.
 
 Typischer Einsatz: Auf "Test"-Nachrichten im Kanal HessenTest mit einer Empfangs-
 bestätigung antworten, z. B.
@@ -80,9 +86,9 @@ Wird der Ordner verschoben, den Unterordner .venv löschen und die .bat erneut s
 
 4a. ALS EXE (OHNE PYTHON)
 -------------------------
-Fertig gebaute EXE (Version 1.2.5) zum Herunterladen:
+Fertig gebaute EXE (Version 1.3.0) zum Herunterladen:
   https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe
-  SHA256: b9daae37f56bb806ec01a290a9598bb497345d28ffa694dc35e236fb6e63ad08
+  SHA256: a832354dc234f5087e956ebbd171dec798d040071ec952263cac301a63f7c2c3
   Prüfen: certutil -hashfile MeshResponder.exe SHA256
 Oder selbst bauen: build_exe.bat doppelklicken (braucht einmalig Python und Internet). Ergebnis:
 dist\MeshResponder.exe – eine einzelne Datei (ca. 25 MB), die ohne Python läuft und überall
@@ -147,7 +153,7 @@ Rechtsklick auf das Icon öffnet das Menü:
   Ruhezeit                   Ruhezeit schnell ein-/ausschalten (Zeiten im Setup)
   Sperrliste …               gesperrte Absender ansehen, hinzufügen, entfernen
   Log und Statistik …        alle Ereignisse als Tabelle, dazu eine Statistik
-  Setup …                    Verbindung, Kanäle, Zeitsperre, Ruhezeiten, Hinweise
+  Setup …                    Verbindung, Kanäle, Antwort als DM, Bots, Zeitsperre, Ruhezeiten, Hinweise
   Info …                     Version, Lizenz, Kontakt
   Beenden
 
@@ -212,6 +218,21 @@ Kanäle
   Nodes, sobald eine Verbindung besteht. Der Primärkanal ohne Namen erscheint unter dem
   Namen seines Modem-Presets (z. B. ShortSlow, LongFast).
   Direktnachrichten werden immer berücksichtigt.
+Antwort als Direktnachricht statt im Kanal (ab 1.3.0)
+  Für die hier angehakten Kanäle geht die Antwort nicht in den Kanal, sondern als DM an den
+  Absender. Standard: ShortSlow und Mesh Hessen (Bitte von Mesh Hessen). Das Nachrichten-
+  fenster zeigt dann "Antwort als Direktnachricht an … senden?". Nimmt der Absender keine
+  DMs an ("Unmessageable"), wird nicht geantwortet (Log: "Absender nimmt keine DMs an").
+Bots (ab 1.3.0)
+  "Bots erkennen und nicht beantworten" (Standard an). Als Bot gilt ein Absender, wenn
+    - sein Langname eines der Bot-Wörter enthält oder sein Kurzname genau so lautet
+      (Standard: bot, HeTe, Monitor – also z. B. Hessenbot, HeTe, "Monitor_Maintal"),
+    - die Nachricht ein 🤖 enthält, oder
+    - die Nachricht mindestens zwei typische Autoresponder-Merkmale hat: Hops, SNR, RSSI,
+      QSL, Node-ID (!1234abcd), LoRa/MQTT, Copy, empfangen/received/angekommen, ACK.
+  Solche Nachrichten öffnen kein Fenster und werden nie beantwortet (Log: "Bot – ignoriert"
+  mit Grund). Wer fälschlich als Bot gilt: Bot-Wort im Setup entfernen oder die Erkennung
+  ausschalten.
 Zeitsperre
   Wurde einem Absender schon geantwortet, löst er für so viele Minuten kein neues
   Fenster aus (Standard 10, 0 = aus). Das spart Airtime, wenn jemand mehrfach testet.
@@ -222,14 +243,15 @@ Hinweis bei neuer Nachricht
   Ton und/oder Windows-Benachrichtigung, wenn ein Fenster aufgeht.
 
 Reihenfolge der Regeln für eine eingehende Nachricht:
-  Sperrliste -> Smiley-Filter -> MQTT-Filter -> Zeitsperre (bei DM-Auto mind. 5 min)
-  -> DM-Auto ("DMs automatisch beantworten" oder "ohne Bestätigung") -> Ruhezeit -> Fenster
+  Sperrliste -> Smiley-Filter -> MQTT-Filter -> Bot-Erkennung -> Zeitsperre (bei DM-Auto
+  mind. 5 min) -> keine DMs möglich? -> DM-Auto ("DMs automatisch beantworten" oder "ohne Bestätigung") -> Ruhezeit -> Fenster
 
 
 8. LOG UND STATISTIK
 --------------------
 Alle Ereignisse landen in mesh_responder_log.csv (Semikolon-getrennt, direkt mit Excel
-zu öffnen): Empfangen, Gesendet, Automatisch gesendet, Smiley ignoriert, MQTT ignoriert, Gesperrt,
+zu öffnen): Empfangen, Gesendet (ggf. "als DM"), Automatisch gesendet, Smiley ignoriert, MQTT ignoriert,
+Bot – ignoriert, Gesperrt,
 Zeitsperre, Ruhezeit, Verbindungswechsel, Fehler.
 
 "Log und Statistik" zeigt das Log als Tabelle (neueste oben, gesendet = grün,

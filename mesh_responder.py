@@ -40,6 +40,7 @@ Ausführliche Beschreibung: Anleitung.txt im selben Ordner.
 Start:  pythonw mesh_responder.py          (normal)
         python  mesh_responder.py --demo   (simuliert Nachrichten, sendet nichts)
 """
+import atexit
 import csv
 import ctypes
 import faulthandler
@@ -48,6 +49,7 @@ import logging
 import logging.handlers
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -71,6 +73,12 @@ HOST = "127.0.0.1"
 PORT = 4404
 DEFAULT_CHANNELS = ["ShortSlow", "HessenTest"]   # "ShortSlow" = Primärkanal ohne Namen
 POPUP_TIMEOUT_S = 90                            # danach schließt das Fenster ohne Antwort
+DEFAULT_DM_CHANNELS = ["ShortSlow", "Mesh Hessen"]   # Bitte von Mesh Hessen: dort per DM antworten
+DEFAULT_BOT_NAMES = ["bot", "HeTe", "Monitor"]  # Hessenbot, HeTe, Monitor-Nodes: Name enthält / Kurzname ist
+# Merkmale typischer Autoresponder-/Bot-Ausgaben; ab zwei verschiedenen gilt eine Nachricht als Bot-Antwort
+BOT_MARKERS = {"Hops": r"\bhops?\b", "SNR": r"\bsnr\b", "RSSI": r"\brssi\b", "QSL": r"\bqsl\b",
+               "Node-ID": r"![0-9a-f]{8}\b", "LoRa/MQTT": r"\b(lora|mqtt)\b", "Copy": r"\bcopy\b",
+               "Empfangen": r"\b(empfangen|received|angekommen)\b", "ACK": r"\back\b"}
 MAX_BYTES = 200                                 # Meshtastic-Textlimit (ca.)
 POPUP_BOTTOM_PX = 320                           # Abstand Fenster–Bildschirmunterkante (Platz für Hinweise
                                                 # des Meshhessen Clients und Windows-Benachrichtigungen)
@@ -79,7 +87,7 @@ WATCHDOG_S = 180                                # reagiert das Programm so lange
 AUTO_MIN_SPERRE_MIN = 5                         # Mindestabstand (Minuten) zwischen Auto-Antworten an
                                                 # denselben Absender, auch wenn die Zeitsperre 0 ist
 PROXY_ID = "!50696e67"                          # Statusnachrichten des Keepalive-Proxys ("Ping Proxy")
-VERSION = "1.2.5"
+VERSION = "1.3.0"
 VERSION_DATE = "Oktober 2026"
 # -------------------------------------------------------------------------------
 
@@ -141,6 +149,8 @@ def default_settings():
             "verbindung": {"host": HOST, "port": PORT},
             "kanaele": list(DEFAULT_CHANNELS),
             "sperrliste": {},     # Node-ID -> Name
+            "dm_statt_kanal": list(DEFAULT_DM_CHANNELS),   # Kanalnachrichten hier per DM beantworten
+            "bots": {"erkennen": True, "namen": list(DEFAULT_BOT_NAMES)},
             "optionen": {"smileys": False, "mqtt": False, "dm_auto": False, "sperre_min": 10, "ton": True, "benachrichtigung": True,
                          "ruhe_an": False, "ruhe_von": "22:00", "ruhe_bis": "07:00", "ruhe_auto": False}}
 
@@ -308,6 +318,36 @@ def pkt_info(pkt, iface):
             "text": pkt.get("decoded", {}).get("text", ""), "zeit": time.strftime("%H:%M")}
 
 
+def bot_reason(pkt, info, iface):
+    """Grund, warum der Absender wie ein Bot aussieht – oder None."""
+    b = settings["bots"]
+    if not b.get("erkennen", True):
+        return None
+    user = (iface.nodes or {}).get(info["id"], {}).get("user", {}) if iface else {}
+    long_name, short = user.get("longName", info["name"]).lower(), user.get("shortName", info["short"]).lower()
+    for word in b.get("namen", []):
+        w = word.strip().lower()
+        if w and (w in long_name or w == short):
+            return f"Name enthält „{word.strip()}“"
+    text = info["text"].lower()
+    if "\U0001F916" in text:                            # 🤖 – Bots kennzeichnen sich oft selbst
+        return "Nachricht mit 🤖"
+    found = [name for name, rx in BOT_MARKERS.items() if re.search(rx, text)]
+    if len(found) >= 2:
+        return "automatische Antwort (" + ", ".join(found) + ")"
+    return None
+
+
+def answer_as_dm(pkt):
+    """Kanalnachricht, die laut Setup per Direktnachricht beantwortet wird?"""
+    return not is_dm(pkt) and state["chans"].get(pkt.get("channel", 0)) in settings["dm_statt_kanal"]
+
+
+def unmessagable(pkt, iface):
+    frm = pkt.get("fromId") or f"!{pkt['from']:08x}"
+    return bool((iface.nodes or {}).get(frm, {}).get("user", {}).get("isUnmessagable")) if iface else False
+
+
 def on_text(packet, interface):
     if not state["active"] or packet.get("from") in (interface.myInfo.my_node_num, int(PROXY_ID[1:], 16)):
         return
@@ -322,6 +362,10 @@ def on_text(packet, interface):
         return
     if packet.get("viaMqtt") and not settings["optionen"]["mqtt"]:
         log_csv("MQTT ignoriert", i)
+        return
+    reason = bot_reason(packet, i, interface)
+    if reason:
+        log_csv(f"Bot – ignoriert: {reason}", i)
         return
     log_csv("Empfangen", i)
     events.put(lambda p=packet: handle_incoming(p))
@@ -386,7 +430,13 @@ def send_reply(pkt, text, ereignis="Gesendet"):
 
 def _send(iface, pkt, info, text, ereignis):
     try:
-        if is_dm(pkt):
+        if answer_as_dm(pkt):
+            # Kanalnachricht, Antwort als DM an den Absender (Bitte von Mesh Hessen: Kanäle frei halten)
+            iface.sendData(text.encode("utf-8"), destinationId=pkt["from"],
+                           portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP,
+                           channelIndex=pkt.get("channel", 0), wantAck=True)
+            ereignis += " (als DM)"
+        elif is_dm(pkt):
             # DM zurück an den Absender, gleiche Verschlüsselung (PKI) wie die eingehende
             iface.sendData(text.encode("utf-8"), destinationId=pkt["from"],
                            portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP,
@@ -413,6 +463,9 @@ def handle_incoming(pkt):
     last = state["last_reply"].get(info["id"])
     if sperre and last and time.time() - last < sperre * 60:
         log_csv(f"Zeitsperre – schon vor {int((time.time() - last) / 60)} min beantwortet", info)
+        return
+    if answer_as_dm(pkt) and unmessagable(pkt, state["iface"]):
+        log_csv("Nicht beantwortet – Absender nimmt keine DMs an", info)
         return
     if auto:
         send_reply(pkt, render(text, info), "Automatisch gesendet")
@@ -475,7 +528,9 @@ class Popup:
                  fg="#888").pack(padx=12, pady=(8, 0), anchor="w")
         tk.Label(w, text=f"{self.info['name']} ({self.info['id']})", font=("Segoe UI", 10, "bold")).pack(**pad)
         tk.Label(w, text=self.info["text"], font=("Segoe UI", 11), wraplength=360, justify="left").pack(**pad)
-        tk.Label(w, text="Antwort senden?", font=("Segoe UI", 9, "bold")).pack(padx=12, pady=(10, 0), anchor="w")
+        ask = (f"Antwort als Direktnachricht an {self.info['name']} senden?" if answer_as_dm(pkt)
+               else "Antwort senden?")
+        tk.Label(w, text=ask, font=("Segoe UI", 9, "bold")).pack(padx=12, pady=(10, 0), anchor="w")
 
         self.combo = ttk.Combobox(w, state="readonly", width=50,
                                   values=[f"{i + 1}: {first_line(t)}" for i, t in self.slots])
@@ -669,6 +724,35 @@ class Setup:
                      ).grid(row=row, column=0, columnspan=4, sticky="w")
             row += 1
 
+        section("Antwort als Direktnachricht statt im Kanal")
+        self.dm_vars = {}
+        df = ttk.Frame(f)
+        df.grid(row=row, column=0, columnspan=4, sticky="w")
+        for n, name in enumerate(names):
+            v = tk.BooleanVar(value=name in settings["dm_statt_kanal"])
+            ttk.Checkbutton(df, text=name, variable=v).grid(row=n // 3, column=n % 3, sticky="w", padx=(0, 12))
+            self.dm_vars[name] = v
+        row += 1
+        tk.Label(f, fg="#666", justify="left",
+                 text="Mesh Hessen bittet: in ShortSlow und Mesh Hessen keine Bot-Antworten im Kanal.\n"
+                      "Zum Testen ist HessenTest da.").grid(row=row, column=0, columnspan=4, sticky="w")
+        row += 1
+
+        section("Bots")
+        self.bot_an = tk.BooleanVar(value=settings["bots"].get("erkennen", True))
+        ttk.Checkbutton(f, text="Bots erkennen und nicht beantworten", variable=self.bot_an).grid(
+            row=row, column=0, columnspan=4, sticky="w")
+        row += 1
+        ttk.Label(f, text="Bot-Namen (enthalten bzw. Kurzname, mit Komma):").grid(row=row, column=0, sticky="w")
+        self.bot_namen = ttk.Entry(f, width=28)
+        self.bot_namen.insert(0, ", ".join(settings["bots"].get("namen", [])))
+        self.bot_namen.grid(row=row, column=1, columnspan=3, sticky="w")
+        row += 1
+        tk.Label(f, fg="#666", justify="left",
+                 text="Außerdem gilt als Bot, wer wie ein Autoresponder schreibt (z. B. Hops + SNR, QSL + Node-ID).").grid(
+            row=row, column=0, columnspan=4, sticky="w")
+        row += 1
+
         section("Zeitsperre")
         ttk.Label(f, text="Gleichen Absender nicht erneut fragen für (Minuten, 0 = aus):").grid(
             row=row, column=0, columnspan=2, sticky="w")
@@ -738,12 +822,16 @@ class Setup:
         reconnect = (host, port) != (settings["verbindung"]["host"], int(settings["verbindung"]["port"]))
         settings["verbindung"] = {"host": host, "port": port}
         settings["kanaele"] = [n for n, v in self.chan_vars.items() if v.get()]
+        settings["dm_statt_kanal"] = [n for n, v in self.dm_vars.items() if v.get()]
+        settings["bots"] = {"erkennen": self.bot_an.get(),
+                            "namen": [x.strip() for x in self.bot_namen.get().split(",") if x.strip()]}
         settings["optionen"].update(sperre_min=sperre, ruhe_an=self.ruhe_an.get(),
                                     ruhe_von=self.ruhe_von.get().strip(), ruhe_bis=self.ruhe_bis.get().strip(),
                                     ruhe_auto=self.ruhe_auto.get(), ton=self.ton.get(),
                                     benachrichtigung=self.benachrichtigung.get())
         save_settings()
-        log_csv("Setup geändert", text=f"{host}:{port} | Kanäle: {', '.join(settings['kanaele']) or '–'}")
+        log_csv("Setup geändert", text=f"{host}:{port} | Kanäle: {', '.join(settings['kanaele']) or '–'}"
+                                       f" | als DM: {', '.join(settings['dm_statt_kanal']) or '–'}")
         apply_channel_filter()
         if state["connected"]:
             state["status"] = "Verbunden – " + (", ".join(f"{n} (CH{i})" for i, n in state["chans"].items())
@@ -1032,6 +1120,7 @@ def build_menu():
         return handler
 
     def quit_app(icon, _):
+        log.info("Beenden über das Tray-Menü")
         state["stop"] = True
         wake.set()
         icon.stop()
@@ -1116,6 +1205,13 @@ def rebuild_menu():
 
 def main():
     global ROOT, ICON
+    log.info("Mesh-Responder %s gestartet (PID %d)", VERSION, os.getpid())
+    atexit.register(lambda: log.info("Mesh-Responder beendet (PID %d)", os.getpid()))
+    try:                      # harte Abstürze (z. B. in Tk oder Windows-DLLs) mit Thread-Ständen festhalten
+        crash_log = open(HERE / "mesh_responder_crash.log", "a", encoding="utf-8")
+        faulthandler.enable(file=crash_log, all_threads=True)
+    except OSError:
+        pass
     ROOT = root = tk.Tk()
     root.withdraw()
     migrate_csv()
@@ -1165,6 +1261,7 @@ def main():
 
     poll()
     root.mainloop()
+    log.info("Oberfläche beendet")
 
 
 if __name__ == "__main__":
