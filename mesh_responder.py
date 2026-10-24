@@ -89,7 +89,7 @@ WATCHDOG_S = 180                                # reagiert das Programm so lange
 AUTO_MIN_SPERRE_MIN = 5                         # Mindestabstand (Minuten) zwischen Auto-Antworten an
                                                 # denselben Absender, auch wenn die Zeitsperre 0 ist
 PROXY_ID = "!50696e67"                          # Statusnachrichten des Keepalive-Proxys ("Ping Proxy")
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 VERSION_DATE = "Oktober 2026"
 # -------------------------------------------------------------------------------
 
@@ -345,6 +345,38 @@ def answer_as_dm(pkt):
     return not is_dm(pkt) and state["chans"].get(pkt.get("channel", 0)) in settings["dm_statt_kanal"]
 
 
+def dm_blocked(pkt, iface):
+    """Grund, warum eine Kanalnachricht nicht per DM beantwortet werden kann – oder None.
+    Auf dem Primärkanal (Standardschlüssel) verschickt die Firmware DMs nur PKI-verschlüsselt;
+    ohne den öffentlichen Schlüssel des Absenders (kommt mit dessen NodeInfo) lehnt der eigene
+    Node ab (NAK "PkiSendFailPublicKey")."""
+    if not answer_as_dm(pkt) or iface is None:
+        return None
+    frm = pkt.get("fromId") or f"!{pkt['from']:08x}"
+    user = (iface.nodes or {}).get(frm, {}).get("user", {})
+    if user.get("isUnmessagable"):
+        return "Absender nimmt keine DMs an"
+    if pkt.get("channel", 0) == 0 and not user.get("publicKey"):
+        return "Schlüssel des Absenders unbekannt (noch keine NodeInfo empfangen)"
+    return None
+
+
+def delivery_logger(info, text):
+    """Rückmeldung des Nodes zu einer DM ins Log schreiben (ACK vom Empfänger oder NAK mit Grund)."""
+    target = info["id"]
+
+    def on_response(p):
+        err = p.get("decoded", {}).get("routing", {}).get("errorReason", "NONE")
+        frm = p.get("fromId") or (f"!{p['from']:08x}" if "from" in p else "?")
+        if err != "NONE":
+            log_csv(f"DM nicht zugestellt: {err}", info, text)
+        elif frm == target:
+            log_csv("DM zugestellt (vom Empfänger bestätigt)", info)
+        else:
+            log_csv("DM weitergeleitet (Empfänger hat nicht bestätigt)", info)
+    return on_response
+
+
 def unmessagable(pkt, iface):
     frm = pkt.get("fromId") or f"!{pkt['from']:08x}"
     return bool((iface.nodes or {}).get(frm, {}).get("user", {}).get("isUnmessagable")) if iface else False
@@ -459,14 +491,16 @@ def _send(iface, pkt, info, text, ereignis):
             # Kanalnachricht, Antwort als DM an den Absender (Bitte von Mesh Hessen: Kanäle frei halten)
             iface.sendData(text.encode("utf-8"), destinationId=pkt["from"],
                            portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP,
-                           channelIndex=pkt.get("channel", 0), wantAck=True)
+                           channelIndex=pkt.get("channel", 0), wantAck=True,
+                           onResponse=delivery_logger(info, text), onResponseAckPermitted=True)
             ereignis += " (als DM)"
         elif is_dm(pkt):
             # DM zurück an den Absender, gleiche Verschlüsselung (PKI) wie die eingehende
             iface.sendData(text.encode("utf-8"), destinationId=pkt["from"],
                            portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP,
                            channelIndex=pkt.get("channel", 0), replyId=pkt.get("id"),
-                           pkiEncrypted=bool(pkt.get("pkiEncrypted")))
+                           pkiEncrypted=bool(pkt.get("pkiEncrypted")), wantAck=True,
+                           onResponse=delivery_logger(info, text), onResponseAckPermitted=True)
         else:
             iface.sendText(text, channelIndex=pkt.get("channel", 0), replyId=pkt.get("id"))
         log_csv(ereignis, info, text)
@@ -489,8 +523,9 @@ def handle_incoming(pkt):
     if sperre and last and time.time() - last < sperre * 60:
         log_csv(f"Zeitsperre – schon vor {int((time.time() - last) / 60)} min beantwortet", info)
         return
-    if answer_as_dm(pkt) and unmessagable(pkt, state["iface"]):
-        log_csv("Nicht beantwortet – Absender nimmt keine DMs an", info)
+    blocked = dm_blocked(pkt, state["iface"])
+    if blocked and (auto or in_quiet_time()):
+        log_csv(f"Nicht beantwortet – keine DM möglich: {blocked}", info)
         return
     if auto:
         send_auto(pkt, render(text, info), "Automatisch gesendet")
@@ -553,7 +588,9 @@ class Popup:
                  fg="#888").pack(padx=12, pady=(8, 0), anchor="w")
         tk.Label(w, text=f"{self.info['name']} ({self.info['id']})", font=("Segoe UI", 10, "bold")).pack(**pad)
         tk.Label(w, text=self.info["text"], font=("Segoe UI", 11), wraplength=360, justify="left").pack(**pad)
-        ask = (f"Antwort als Direktnachricht an {self.info['name']} senden?" if answer_as_dm(pkt)
+        self.blocked = dm_blocked(pkt, state["iface"])
+        ask = (f"Keine DM an {self.info['name']} möglich: {self.blocked}" if self.blocked
+               else f"Antwort als Direktnachricht an {self.info['name']} senden?" if answer_as_dm(pkt)
                else "Antwort senden?")
         tk.Label(w, text=ask, font=("Segoe UI", 9, "bold")).pack(padx=12, pady=(10, 0), anchor="w")
 
@@ -613,7 +650,7 @@ class Popup:
             return
         n, limit = len(text.encode("utf-8")), max_bytes(self.pkt)
         too_long = n > limit
-        self.yes_btn.config(state="disabled" if too_long else "normal")
+        self.yes_btn.config(state="disabled" if too_long or self.blocked else "normal")
         self.preview.config(fg="#c62828" if too_long else "#555",
                             text=text + (f"\n⚠ {n} von max. {limit} Bytes – bitte {n - limit} Bytes kürzen "
                                          "(eigener Text oder anderer Platz)" if too_long else ""))
@@ -632,7 +669,7 @@ class Popup:
 
     def yes(self):
         text = self.reply_text()
-        if text and len(text.encode("utf-8")) <= max_bytes(self.pkt):
+        if text and not self.blocked and len(text.encode("utf-8")) <= max_bytes(self.pkt):
             send_reply(self.pkt, text)
         self.close()
 

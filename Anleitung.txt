@@ -1,6 +1,6 @@
 MESH-RESPONDER – ANLEITUNG
 ==========================
-Autoresponder Version 1.3.1 / Oktober 2026 für Virtual Meshtastic Nodes
+Autoresponder Version 1.3.2 / Oktober 2026 für Virtual Meshtastic Nodes
 (z. B. Mesh Hessen Client 1.6.4). Rückfragen an Meshtastic #EPP1
 
 Lizenz: Public Domain (Unlicense, https://unlicense.org), siehe Kopf von mesh_responder.py.
@@ -86,9 +86,9 @@ Wird der Ordner verschoben, den Unterordner .venv löschen und die .bat erneut s
 
 4a. ALS EXE (OHNE PYTHON)
 -------------------------
-Fertig gebaute EXE (Version 1.3.1) zum Herunterladen:
+Fertig gebaute EXE (Version 1.3.2) zum Herunterladen:
   https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe
-  SHA256: 4bc3a9892fff53abd3361e93dde0eb4f4cbed4f53cdc8df8f856778d1d370782
+  SHA256: 0af378166d7ed94810c73786b703f16aaa9ed8e075808d5ae106cae704a51809
   Prüfen: certutil -hashfile MeshResponder.exe SHA256
 Oder selbst bauen: build_exe.bat doppelklicken (braucht einmalig Python und Internet). Ergebnis:
 dist\MeshResponder.exe – eine einzelne Datei (ca. 25 MB), die ohne Python läuft und überall
@@ -232,6 +232,12 @@ Antwort als Direktnachricht statt im Kanal (ab 1.3.0)
   Absender. Standard: ShortSlow und Mesh Hessen (Bitte von Mesh Hessen). Das Nachrichten-
   fenster zeigt dann "Antwort als Direktnachricht an … senden?". Nimmt der Absender keine
   DMs an ("Unmessageable"), wird nicht geantwortet (Log: "Absender nimmt keine DMs an").
+  Ab 1.3.2: Auf dem Primärkanal (ShortSlow) verschickt der Node DMs nur verschlüsselt und
+  braucht dafür den Schlüssel des Absenders, der mit dessen NodeInfo kommt. Ist er unbekannt
+  (Node ohne Namen, z. B. nur über MQTT gehört), zeigt das Fenster "Keine DM … möglich:
+  Schlüssel des Absenders unbekannt" und "Ja" ist gesperrt. Nach jeder DM steht im Log die
+  Rückmeldung: "DM zugestellt", "DM weitergeleitet (Empfänger hat nicht bestätigt)" oder
+  "DM nicht zugestellt: <Grund>".
 Bots (ab 1.3.0)
   "Bots erkennen und nicht beantworten" (Standard an). Als Bot gilt ein Absender, wenn
     - sein Langname eines der Bot-Wörter enthält oder sein Kurzname genau so lautet

@@ -1,6 +1,6 @@
 # Autoresponder für Meshtastic (Virtual Node)
 
-**Version 1.3.1 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
+**Version 1.3.2 / Oktober 2026** – Public Domain ([Unlicense](LICENSE))
 
 Kleines Windows-Tray-Programm, das über den **Virtual Node** eines Meshtastic-Clients
 (z. B. [Mesh Hessen Client](https://www.meshhessen.de) 1.6.4) im Mesh mithört. Bei jeder
@@ -29,6 +29,8 @@ Empfangen: CH1 | Hops: 3
 - Längenprüfung: max. 200 Byte im Kanal, 185 Byte als DM – zu lange Antworten sperren „Ja“,
   automatische Antworten werden am Wortende gekürzt
 - Läuft nur einmal: ein zweiter Start wird mit Hinweis abgelehnt
+- DM-Zustellung im Log (zugestellt / weitergeleitet / nicht zugestellt mit Grund); keine DM an
+  Absender, deren Schlüssel der Node noch nicht kennt
 - Eigener Text direkt im Nachrichtenfenster möglich
 - DM-Plätze optional „ohne Bestätigung“ (sofortige Antwort)
 - **Tray-Schalter „DMs automatisch beantworten“:** alle Direktnachrichten sofort mit dem aktiven
@@ -64,8 +66,8 @@ Test ohne Funk: `python mesh_responder.py --demo` (simuliert Nachrichten, sendet
 
 ## Als EXE (ohne Python)
 
-**Fertig gebaut zum Herunterladen:** [`release/MeshResponder.exe`](https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe) (Version 1.3.1, ca. 25 MB)  
-SHA256: `4bc3a9892fff53abd3361e93dde0eb4f4cbed4f53cdc8df8f856778d1d370782`  (auch in `release/MeshResponder.exe.sha256`; prüfen mit `certutil -hashfile MeshResponder.exe SHA256`)
+**Fertig gebaut zum Herunterladen:** [`release/MeshResponder.exe`](https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe) (Version 1.3.2, ca. 25 MB)  
+SHA256: `0af378166d7ed94810c73786b703f16aaa9ed8e075808d5ae106cae704a51809`  (auch in `release/MeshResponder.exe.sha256`; prüfen mit `certutil -hashfile MeshResponder.exe SHA256`)
 
 `build_exe.bat` baut mit PyInstaller eine einzelne `dist\MeshResponder.exe` (ca. 25 MB), die ohne
 installiertes Python läuft. Einstellungen und Logs legt die EXE **neben sich** ab.
