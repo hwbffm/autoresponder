@@ -1,6 +1,6 @@
 MESH-RESPONDER – ANLEITUNG
 ==========================
-Autoresponder Version 1.3.0 / Oktober 2026 für Virtual Meshtastic Nodes
+Autoresponder Version 1.3.1 / Oktober 2026 für Virtual Meshtastic Nodes
 (z. B. Mesh Hessen Client 1.6.4). Rückfragen an Meshtastic #EPP1
 
 Lizenz: Public Domain (Unlicense, https://unlicense.org), siehe Kopf von mesh_responder.py.
@@ -86,9 +86,9 @@ Wird der Ordner verschoben, den Unterordner .venv löschen und die .bat erneut s
 
 4a. ALS EXE (OHNE PYTHON)
 -------------------------
-Fertig gebaute EXE (Version 1.3.0) zum Herunterladen:
+Fertig gebaute EXE (Version 1.3.1) zum Herunterladen:
   https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe
-  SHA256: a832354dc234f5087e956ebbd171dec798d040071ec952263cac301a63f7c2c3
+  SHA256: 4bc3a9892fff53abd3361e93dde0eb4f4cbed4f53cdc8df8f856778d1d370782
   Prüfen: certutil -hashfile MeshResponder.exe SHA256
 Oder selbst bauen: build_exe.bat doppelklicken (braucht einmalig Python und Internet). Ergebnis:
 dist\MeshResponder.exe – eine einzelne Datei (ca. 25 MB), die ohne Python läuft und überall
@@ -174,12 +174,21 @@ Platzhalter, die beim Senden ersetzt werden:
   {kanal}  Kanalname (z. B. HessenTest)   {hops}   Anzahl Hops
   {snr}    Signal-Rausch-Abstand (dB)     {rssi}   Empfangsstärke (dBm)
   {text}   die empfangene Nachricht       {zeit}   Uhrzeit (HH:MM)
+  {weg}    Funk oder MQTT (Empfangsweg)
 
 Beispiel:
   Hier {short} – Test von {name} empfangen ✅ ({hops} Hops, SNR {snr})
 
-Die Spalte "Länge" zeigt die ungefähre Größe in Bytes. Meshtastic-Nachrichten dürfen
-etwa 200 Bytes lang sein; Umlaute zählen doppelt, Emojis vierfach.
+Die Spalte "Länge" zeigt die ungefähre Größe in Bytes (mit Beispielwerten; lange Node-Namen
+machen die echte Antwort länger). Umlaute zählen doppelt, Emojis drei- bis vierfach.
+Höchstlänge (ab 1.3.1):
+  Antwort in einen Kanal           200 Bytes
+  Direktnachricht / Antwort als DM 185 Bytes (die Verschlüsselung braucht 12 Bytes extra)
+Ist die Antwort länger, ist "Ja" im Nachrichtenfenster gesperrt und es steht dort, wie viele
+Bytes zu kürzen sind. Automatische Antworten (DM ohne Bestätigung, Ruhezeit) werden am
+Wortende gekürzt und mit "…" beendet; das Log vermerkt "gekürzt von … auf … B".
+Grund: Meshtastic kürzt nie selbst. Zu lange Nachrichten verweigert die Bibliothek (über
+233 Bytes) oder der Node verwirft sie still (knapp darunter, vor allem verschlüsselte DMs).
 
 "ohne Bestätigung" (nur bei DMs): Ist dieser Haken beim AKTIVEN DM-Platz gesetzt, wird
 jede DM sofort beantwortet, ohne Fenster.
@@ -312,6 +321,8 @@ Programm ist plötzlich weg (kein Icon mehr)
   - Antworten werden im Hintergrund gesendet; eine hängende Funkverbindung friert die
     Fenster nicht mehr ein.
   - Sonst: start_mesh_responder.bat erneut starten.
+  - "Der Mesh-Responder läuft bereits": Ab 1.3.1 kann nur ein Exemplar laufen (zwei würden
+    jede Nachricht doppelt melden oder beantworten). Das M liegt evtl. hinter dem Pfeil ^.
 
 Es kommen keine Fenster
   - Ist "Aktiv" gewählt? Ist die Ruhezeit an?

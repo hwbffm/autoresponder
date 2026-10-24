@@ -79,7 +79,9 @@ DEFAULT_BOT_NAMES = ["bot", "HeTe", "Monitor"]  # Hessenbot, HeTe, Monitor-Nodes
 BOT_MARKERS = {"Hops": r"\bhops?\b", "SNR": r"\bsnr\b", "RSSI": r"\brssi\b", "QSL": r"\bqsl\b",
                "Node-ID": r"![0-9a-f]{8}\b", "LoRa/MQTT": r"\b(lora|mqtt)\b", "Copy": r"\bcopy\b",
                "Empfangen": r"\b(empfangen|received|angekommen)\b", "ACK": r"\back\b"}
-MAX_BYTES = 200                                 # Meshtastic-Textlimit (ca.)
+MAX_BYTES = 200                                 # sichere Länge einer Kanalnachricht (Nutzlast max. 233 B)
+MAX_BYTES_DM = 185                              # DMs: PKI-Verschlüsselung braucht 12 B zusätzlich
+INSTANCE_MUTEX = "Local\\MeshResponder"         # verhindert einen zweiten gleichzeitigen Start
 POPUP_BOTTOM_PX = 320                           # Abstand Fenster–Bildschirmunterkante (Platz für Hinweise
                                                 # des Meshhessen Clients und Windows-Benachrichtigungen)
 TRAY_CHECK_S = 20                               # so oft prüfen, ob das Tray-Symbol noch da ist
@@ -87,7 +89,7 @@ WATCHDOG_S = 180                                # reagiert das Programm so lange
 AUTO_MIN_SPERRE_MIN = 5                         # Mindestabstand (Minuten) zwischen Auto-Antworten an
                                                 # denselben Absender, auch wenn die Zeitsperre 0 ist
 PROXY_ID = "!50696e67"                          # Statusnachrichten des Keepalive-Proxys ("Ping Proxy")
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 VERSION_DATE = "Oktober 2026"
 # -------------------------------------------------------------------------------
 
@@ -98,11 +100,11 @@ CSV_FILE = HERE / "mesh_responder_log.csv"
 CSV_HEADER = ["Zeit", "Ereignis", "Kanal", "Node-ID", "Name", "Hops", "Text", "SNR", "RSSI", "Weg"]
 SLOTS = 9
 DEFAULT_TEXT = "In Standort angekommen ✅\n{name} | {short} | {id}\nEmpfangen: {wo} | Hops: {hops}"
-PLACEHOLDER_HELP = ("Platzhalter:  {name} Langname   {short} Kurzname   {id} Node-ID   {wo} CHn/DM   "
+PLACEHOLDER_HELP = ("Platzhalter:  {name} Langname   {short} Kurzname   {id} Node-ID   {wo} CHn/DM   {weg} Funk/MQTT   "
                     "{kanal} Kanalname   {hops} Hops   {snr} SNR   {rssi} RSSI   "
                     "{text} eingehende Nachricht   {zeit} Uhrzeit")
 SAMPLE = {"name": "Nodename", "short": "NODE", "id": "!12345678", "wo": "CH1",
-          "kanal": "HessenTest", "hops": 3, "snr": "-7.5", "rssi": "-112", "text": "Test", "zeit": "12:00"}
+          "kanal": "HessenTest", "hops": 3, "snr": "-7.5", "rssi": "-112", "text": "Test", "zeit": "12:00", "weg": "Funk"}
 
 DEMO = "--demo" in sys.argv
 LOG_FILE = HERE / "mesh_responder.log"
@@ -416,6 +418,29 @@ def active_slot(pkt):
     return settings["kanal"]["aktiv_pro_kanal"].get(name, settings["kanal"]["aktiv"])
 
 
+def max_bytes(pkt):
+    """Sichere Höchstlänge der Antwort: DMs (auch Kanal-Antworten als DM) haben weniger Platz."""
+    return MAX_BYTES_DM if is_dm(pkt) or answer_as_dm(pkt) else MAX_BYTES
+
+
+def fit(text, limit):
+    """Text auf limit Bytes (UTF-8) kürzen, möglichst am Wortende, mit "…" am Schluss."""
+    if len(text.encode("utf-8")) <= limit:
+        return text
+    cut = text.encode("utf-8")[:limit - len("…".encode("utf-8"))].decode("utf-8", "ignore")
+    word = cut.rstrip().rsplit(maxsplit=1)[0] if " " in cut.strip() else cut
+    return (word if len(word) >= len(cut) // 2 else cut).rstrip(" ,;:-|") + "…"
+
+
+def send_auto(pkt, text, ereignis):
+    """Automatische Antwort: zu lange Texte werden gekürzt statt still verloren zu gehen."""
+    limit = max_bytes(pkt)
+    short = fit(text, limit)
+    if short != text:
+        ereignis += f" (gekürzt von {len(text.encode('utf-8'))} auf {len(short.encode('utf-8'))} B)"
+    send_reply(pkt, short, ereignis)
+
+
 def send_reply(pkt, text, ereignis="Gesendet"):
     """Antwort senden – im Hintergrund-Thread. Die Meshtastic-Bibliothek wartet beim Senden
     endlos, solange der TX-Puffer des Nodes als voll gilt; das darf die Fenster nie einfrieren."""
@@ -468,11 +493,11 @@ def handle_incoming(pkt):
         log_csv("Nicht beantwortet – Absender nimmt keine DMs an", info)
         return
     if auto:
-        send_reply(pkt, render(text, info), "Automatisch gesendet")
+        send_auto(pkt, render(text, info), "Automatisch gesendet")
         return
     if in_quiet_time():
         if settings["optionen"]["ruhe_auto"] and text.strip():
-            send_reply(pkt, render(text, info), "Automatisch gesendet (Ruhezeit)")
+            send_auto(pkt, render(text, info), "Automatisch gesendet (Ruhezeit)")
         else:
             log_csv("Ruhezeit – nicht beantwortet", info)
         return
@@ -582,12 +607,16 @@ class Popup:
 
     def update_preview(self):
         text = self.reply_text()
-        self.yes_btn.config(state="normal" if text else "disabled")
         if not text:
-            self.preview.config(text="Kein Antworttext (Tray-Menü → Antworttexte bearbeiten)")
+            self.yes_btn.config(state="disabled")
+            self.preview.config(text="Kein Antworttext (Tray-Menü → Antworttexte bearbeiten)", fg="#555")
             return
-        n = len(text.encode("utf-8"))
-        self.preview.config(text=text + (f"\n⚠ {n} Bytes – zu lang?" if n > MAX_BYTES else ""))
+        n, limit = len(text.encode("utf-8")), max_bytes(self.pkt)
+        too_long = n > limit
+        self.yes_btn.config(state="disabled" if too_long else "normal")
+        self.preview.config(fg="#c62828" if too_long else "#555",
+                            text=text + (f"\n⚠ {n} von max. {limit} Bytes – bitte {n - limit} Bytes kürzen "
+                                         "(eigener Text oder anderer Platz)" if too_long else ""))
 
     def tick(self):
         if self.left < 0:
@@ -603,7 +632,7 @@ class Popup:
 
     def yes(self):
         text = self.reply_text()
-        if text:
+        if text and len(text.encode("utf-8")) <= max_bytes(self.pkt):
             send_reply(self.pkt, text)
         self.close()
 
@@ -644,8 +673,8 @@ class Editor:
                 t.grid(row=i + 1, column=1, pady=3)
                 n = tk.Label(f, width=7)
                 n.grid(row=i + 1, column=2, sticky="n", pady=3)
-                t.bind("<KeyRelease>", lambda e, t=t, n=n: (fix_emoji_widget(t), self.count(t, n)))
-                self.count(t, n)
+                t.bind("<KeyRelease>", lambda e, t=t, n=n, c=cat: (fix_emoji_widget(t), self.count(t, n, c)))
+                self.count(t, n, cat)
                 self.texts[cat].append(t)
                 if cat == "dm":
                     v = tk.BooleanVar(value=settings["dm"]["auto"][i])
@@ -658,9 +687,11 @@ class Editor:
         tk.Button(bar, text="Abbrechen", width=12, command=w.destroy).pack(side="left", padx=6)
 
     @staticmethod
-    def count(t, n):
+    def count(t, n, cat):
+        # Kanaltexte gehen evtl. als DM raus (Setup) – dann gilt die kleinere DM-Grenze
+        limit = MAX_BYTES_DM if cat == "dm" or settings["dm_statt_kanal"] else MAX_BYTES
         size = len(render(t.get("1.0", "end-1c"), SAMPLE).encode("utf-8"))
-        n.config(text=f"{size} B" if size else "", fg="red" if size > MAX_BYTES else "#666")
+        n.config(text=f"{size} B" if size else "", fg="red" if size > limit else "#666")
 
     def save(self):
         for cat in ("kanal", "dm"):
@@ -1177,7 +1208,7 @@ def watchdog():
             pass
         log_csv("Neustart nach Hänger", text=f"keine Reaktion seit {int(stuck)} s")
         try:
-            args = ["--demo"] if DEMO else []
+            args = (["--demo"] if DEMO else []) + ["--restart"]
             cmd = [sys.executable, *args] if FROZEN else [sys.executable, str(Path(__file__).resolve()), *args]
             env = dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1")   # .exe: eigenes Entpack-Verzeichnis
             subprocess.Popen(cmd, cwd=HERE, env=env,
@@ -1203,8 +1234,32 @@ def rebuild_menu():
         ICON.menu = build_menu()
 
 
+def single_instance():
+    """Benannter Windows-Mutex: True, wenn kein anderer Mesh-Responder läuft. Nach einem
+    Selbst-Neustart (--restart) wird bis zu 20 s gewartet, bis die alte Instanz beendet ist."""
+    global INSTANCE_HANDLE
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateMutexW.restype = ctypes.c_void_p
+    k32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    deadline = time.time() + (20 if "--restart" in sys.argv else 0)
+    while True:
+        INSTANCE_HANDLE = k32.CreateMutexW(None, True, INSTANCE_MUTEX)
+        if ctypes.get_last_error() != 183:                # ERROR_ALREADY_EXISTS
+            return True
+        k32.CloseHandle(INSTANCE_HANDLE)
+        if time.time() >= deadline:
+            return False
+        time.sleep(1)
+
+
 def main():
     global ROOT, ICON
+    if not DEMO and not single_instance():
+        log.warning("Zweiter Start abgelehnt – Mesh-Responder läuft bereits (PID %d)", os.getpid())
+        ctypes.windll.user32.MessageBoxW(
+            None, "Der Mesh-Responder läuft bereits.\n\nDas gelbe M findest du im Infobereich der Taskleiste "
+                  "(ggf. hinter dem Pfeil ^).", "Mesh-Responder", 0x40 | 0x40000)
+        return
     log.info("Mesh-Responder %s gestartet (PID %d)", VERSION, os.getpid())
     atexit.register(lambda: log.info("Mesh-Responder beendet (PID %d)", os.getpid()))
     try:                      # harte Abstürze (z. B. in Tk oder Windows-DLLs) mit Thread-Ständen festhalten
