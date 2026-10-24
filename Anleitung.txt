@@ -1,6 +1,6 @@
 MESH-RESPONDER – ANLEITUNG
 ==========================
-Autoresponder Version 1.2.4 / Oktober 2026 für Virtual Meshtastic Nodes
+Autoresponder Version 1.2.5 / Oktober 2026 für Virtual Meshtastic Nodes
 (z. B. Mesh Hessen Client 1.6.4). Rückfragen an Meshtastic #EPP1
 
 Lizenz: Public Domain (Unlicense, https://unlicense.org), siehe Kopf von mesh_responder.py.
@@ -80,9 +80,9 @@ Wird der Ordner verschoben, den Unterordner .venv löschen und die .bat erneut s
 
 4a. ALS EXE (OHNE PYTHON)
 -------------------------
-Fertig gebaute EXE (Version 1.2.4) zum Herunterladen:
+Fertig gebaute EXE (Version 1.2.5) zum Herunterladen:
   https://github.com/hwbffm/autoresponder/raw/main/release/MeshResponder.exe
-  SHA256: c14ff17714271d0de005a5319162b4db8d93f454e96da91bac8961d73fd981c2
+  SHA256: b9daae37f56bb806ec01a290a9598bb497345d28ffa694dc35e236fb6e63ad08
   Prüfen: certutil -hashfile MeshResponder.exe SHA256
 Oder selbst bauen: build_exe.bat doppelklicken (braucht einmalig Python und Internet). Ergebnis:
 dist\MeshResponder.exe – eine einzelne Datei (ca. 25 MB), die ohne Python läuft und überall
@@ -122,6 +122,10 @@ Absender "Ping Proxy" (!50696e67) an; der Autoresponder beantwortet sie nicht (a
   Graues M  = keine Verbindung (der Responder versucht es alle 10 s erneut)
   Achtung: Der Meshhessen Client hat selbst ein graues "M" im Tray. Mit der Maus
   darüberfahren zeigt, welches Icon welches ist.
+  Ab 1.2.5 prüft der Responder alle 20 s, ob sein Symbol noch im Tray ist, und legt es sonst
+  neu an (Log: "Tray-Symbol fehlt – wird neu angelegt"). Das passiert z. B. beim Autostart,
+  wenn die Taskleiste noch nicht bereit war. Fehlt das M trotzdem: Pfeil ^ in der Taskleiste
+  öffnen – Windows legt neue Symbole oft dort ab.
 
 Rechtsklick auf das Icon öffnet das Menü:
 

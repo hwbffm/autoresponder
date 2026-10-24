@@ -41,6 +41,7 @@ Start:  pythonw mesh_responder.py          (normal)
         python  mesh_responder.py --demo   (simuliert Nachrichten, sendet nichts)
 """
 import csv
+import ctypes
 import faulthandler
 import json
 import logging
@@ -73,11 +74,12 @@ POPUP_TIMEOUT_S = 90                            # danach schließt das Fenster o
 MAX_BYTES = 200                                 # Meshtastic-Textlimit (ca.)
 POPUP_BOTTOM_PX = 320                           # Abstand Fenster–Bildschirmunterkante (Platz für Hinweise
                                                 # des Meshhessen Clients und Windows-Benachrichtigungen)
+TRAY_CHECK_S = 20                               # so oft prüfen, ob das Tray-Symbol noch da ist
 WATCHDOG_S = 180                                # reagiert das Programm so lange nicht: Neustart
 AUTO_MIN_SPERRE_MIN = 5                         # Mindestabstand (Minuten) zwischen Auto-Antworten an
                                                 # denselben Absender, auch wenn die Zeitsperre 0 ist
 PROXY_ID = "!50696e67"                          # Statusnachrichten des Keepalive-Proxys ("Ping Proxy")
-VERSION = "1.2.4"
+VERSION = "1.2.5"
 VERSION_DATE = "Oktober 2026"
 # -------------------------------------------------------------------------------
 
@@ -1096,6 +1098,17 @@ def watchdog():
         os._exit(1)
 
 
+def tray_missing(icon):
+    """True, wenn Windows das Tray-Symbol nicht (mehr) kennt – z. B. weil es beim Hochfahren
+    angemeldet wurde, bevor die Taskleiste bereit war. pystray prüft das selbst nicht."""
+    hwnd = getattr(icon, "_hwnd", None)
+    if not hwnd:
+        return False
+    from pystray._util import win32 as pw
+    data = pw.NOTIFYICONDATAW(cbSize=ctypes.sizeof(pw.NOTIFYICONDATAW), hWnd=hwnd, hID=id(icon), uFlags=0)
+    return not pw.Shell_NotifyIcon(pw.NIM_MODIFY, data)
+
+
 def rebuild_menu():
     if ICON is not None:
         ICON.menu = build_menu()
@@ -1125,7 +1138,7 @@ def main():
         threading.Thread(target=mesh_loop, daemon=True).start()
     threading.Thread(target=watchdog, daemon=True).start()
 
-    shown = {"img": None}
+    shown = {"img": None, "tray_check": time.time()}
 
     def poll():
         state["last_poll"] = time.time()
@@ -1143,6 +1156,11 @@ def main():
         if icon.title != title:
             icon.title = title
             icon.update_menu()
+        if time.time() - shown["tray_check"] >= TRAY_CHECK_S:
+            shown["tray_check"] = time.time()
+            if tray_missing(icon):
+                log.warning("Tray-Symbol fehlt – wird neu angelegt")
+                icon._show()
         root.after(300, poll)
 
     poll()
